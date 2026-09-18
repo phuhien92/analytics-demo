@@ -18,7 +18,10 @@ part worth stealing.
 Entries cite the document that holds the evidence.
 
 - `docs/design.md` and `docs/market-research.md` are in this repository. Section numbers are
-  design.md's.
+  design.md's as it stood before the split: the technical sections they name — architecture,
+  the QuerySpec, the semantic layer, the warehouse interface, AI usage, testing and the stack
+  — now live in `docs/architecture.md` under their own numbering. The citations below are left
+  as written, because each was correct when it was made.
 - Three research reports — **stack research** (1,058 lines), **UI direction** and the
   **build spec** — are working documents kept with the research working set rather than in
   this repository. They carry the spikes, the measurements and the reasoning behind
