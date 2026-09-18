@@ -9,6 +9,9 @@ Authoritative sources, in this order:
 - `docs/market-research.md` — the evidence the design rests on.
 - This file — the invariants an agent must not break, and the decisions already
   settled so they are not relitigated or silently reversed.
+- `docs/how-this-was-built.md` — the running record of how each decision was
+  reached, and the method that produced it. Not authoritative over the design;
+  it is how the design got here.
 
 If code and `docs/design.md` disagree, the doc wins until the doc is changed.
 A design change lands in `docs/design.md` first, with its rationale, then in code.
@@ -102,6 +105,17 @@ warehouse connection — the interface exists so one can be added; no adapter sh
 Deferred but genuinely additive (§5): UI translation and RTL, generic service
 resilience, row-level security, correction harvesting into the eval set, caching
 and pushdown past ~1M rows, per-tenant cache namespacing, observability.
+
+## The running record
+
+Every increment records its decisions in `docs/how-this-was-built.md` as it
+lands, in the same commit as the work — what was decided, the evidence, what was
+rejected, and what deciding it later would have cost. The table above is the
+contract; that document is the history behind it, and it is where a measured
+finding that contradicted the plan gets written down.
+
+A journal reconstructed at the end is a summary. One written as the work lands is
+evidence, so do not defer it to the last increment.
 
 ## Data and pinned figures
 
