@@ -91,8 +91,8 @@ src/
       types.ts                  interface Warehouse { aggregate(spec) }
       local-store.ts            typed-array adapter
     semantic/
-      load.ts                 parse + validate semantic/*.json
-      guards/registry.ts      declared guard implementations
+      load.ts                 parse + validate semantic/*.json, fail fast
+      guards/registry.ts      the four declared guards; no thresholds
     engine/
       execute.ts              QuerySpec -> ResultSet (pure, deterministic)
       amend.ts                SpecPatch -> QuerySpec
@@ -108,6 +108,7 @@ src/
                               Chart, NaiveComparison, ProvenanceDrawer
 tests/
   contracts.test.ts           the core contracts hold their shape
+  semantic.test.ts            the layer loads, and a broken one does not
   engine.test.ts
   conformance/                spec -> expected numbers; EVERY adapter must pass
   evals/questions.jsonl       question -> expected-spec pairs
@@ -264,23 +265,105 @@ plus a prompt rewrite plus a matching rewrite. The nesting level costs nothing n
 
 v1 ships `en` only. Adding a locale becomes a data change.
 
-- **Measures** — average rating, number of ratings, number of viewers, number of
-  titles, share rated 4+
-- **Dimensions** — genre, release decade, release year, rating year, title
-- **Filters** — minimum ratings per title, release period, rating period, genre,
-  viewer segment
-- **Guards** — see below; declared here, implemented in the registry
+The model may select only from what the layer declares. Anything outside it is **rejected
+and turned into a clarifying question — never coerced to the nearest match.** Silent
+coercion is how you get a plausible answer to a question nobody asked. That rejection path
+is what makes "the AI never computes the number" structurally true rather than a promise.
 
-The model may select only from this set. Anything outside it is **rejected and turned
-into a clarifying question — never coerced to the nearest match.** Silent coercion is
-how you get a plausible answer to a question nobody asked. That rejection path is what
-makes "the AI never computes the number" structurally true rather than a promise.
+### What the shipped layer declares
+
+Landed in GA-03 at its thinnest viable. Asserted in `tests/semantic.test.ts`, not only
+described here — a listing beside the shipped file is a second source of truth otherwise.
+
+- **Measures** (5) — `avg_rating`, `rating_count`, `viewer_count`, `title_count`,
+  `share_rated_4_plus`
+- **Dimensions** (5) — `title`, `genre`, `release_year`, `release_decade`,
+  `rating_year`
+- **Guards** (4) — section 4
+- **No synonyms, and no filter vocabulary.**
+
+Both omissions are deliberate. An earlier draft of this section listed a filter vocabulary
+— minimum ratings per title, release period, rating period, genre, viewer segment — and
+`SemanticLayerSchema` has no `filters` key at all, so a layer declaring one now fails to
+load. Volume is earned by a failing eval in GA-05, never by anticipation, and the two
+directions are not symmetric: **thin is reversible, flat is not.** Adding a synonym is a
+data edit; flattening the locale keying costs a schema, a prompt and a matching rewrite,
+and every eval passes against a flat layer right up until the first non-English locale, so
+the eval loop cannot warn about that one in time.
+
+`defaultTieBreak` is `title` — the only dimension that is unique per member, which is what
+a tie-break has to be for the 296-way tie at 5.00 to resolve identically on every adapter.
+
+### The layer is pretty-printed, and that is load-bearing
+
+Measured on the shipped file: **2,157 bytes pretty-printed against 1,568 minified — 589
+bytes of whitespace.** The layer heads the cached prompt prefix (section 6), and Opus 5
+does not cache a prefix below 512 tokens. At roughly four characters per token that is
+~540 tokens pretty against ~390 minified, so pretty-printing is what carries this layer
+over the floor on its own. Dropping under it **fails silently** — no error and no warning,
+just every question paying uncached prefix cost forever. Minifying the layer is therefore
+a cost regression disguised as a saving, and `tests/semantic.test.ts` asserts the newlines
+and carries the measurement with them.
+
+### The materiality threshold is data, not engine logic
+
+`materiality.minValueDelta` is **0.01**, declared in the layer. Two things make a
+naive/honest comparison material, and only one of them needs a number: a change in the
+top-`limit` row-set's membership is structural and needs none, and a measure delta needs
+one presentation step. One global value rather than one per measure, because a measure's
+presentation scale lives in the store and the engine (`ResultRow.value` against
+`rawValue`), not in `MeasureDeclarationSchema` — and 0.01 behaves as a floor across all
+five: it is exactly one step for `avg_rating` and `share_rated_4_plus`, and any real
+change in a count clears it comfortably.
+
+It is declared here rather than in the engine so GA-12 can tune the comparison against the
+rendered block as a data edit, instead of GA-12 editing GA-04's internals.
+
+### The loader is what keeps a data file honest
+
+`src/server/semantic/load.ts` fails fast and points at a path — `measures[0].labels`, not
+"invalid layer" — because whoever reads the error is adding a measure or a guard to fix a
+failing eval. `parseSemanticLayer()` is pure and takes already-parsed input, so the failure
+cases are testable without a file on disk and a layer arriving over the wire later takes
+the same path.
+
+Four checks. The schema gives the first; the other three are cross-file facts a schema
+cannot see, and each is a way for the layer to name something that does not exist and have
+it resolve quietly to nothing at execution time:
+
+1. `SemanticLayerSchema`, which rejects a flat label and any undeclared key.
+2. Every declared `GuardId` is in the registry, naming the id and the registered set.
+3. Every `defaultParams` key is one the named guard actually reads. A threshold under a
+   key no guard reads is worse than a missing threshold — the guard still runs,
+   unthresholded, and nothing says so. That is invariant 4's silent coercion arriving
+   through the layer rather than through the model.
+4. `defaultTieBreak` names a declared dimension. Its failure mode is not a load error but
+   a tie ordering itself differently on every adapter, which is the one thing the
+   conformance suite exists to make impossible.
 
 ## 4. Trust guard declaration
 
-Declared in the semantic layer, implemented in `guards/registry.ts`. The guards
-themselves, their defaults and the verified rationale for each are in
+Declared in the semantic layer, implemented in `src/server/semantic/guards/registry.ts`.
+The four guards themselves, their defaults and the measured rationale for each are in
 `docs/design.md` section 5.
+
+The split is the point. The **layer** says which guards a dataset ships and what their
+thresholds default to; the **registry** says what the engine can actually do with one. A
+`GuardId` in a `QuerySpec` is valid because the registry holds it, never because a core
+type named it (invariant 6) — which is what lets the same portable contract point at other
+data.
+
+**Exactly four guards, asserted.** C4 settled that the thirteen undated titles are
+disclosed in the trust report's coverage line rather than given a fifth guard: they carry
+18 of 100,836 ratings (0.018%) and none clears `min_evidence`, so a fifth would dilute the
+four that carry the hero moment for an immaterial figure. `tests/semantic.test.ts` asserts
+the count and carries that reasoning, so a fifth guard cannot arrive without someone
+deleting a test that says why not.
+
+**No threshold lives in the registry.** `min_evidence` declares that it *reads*
+`minObservations`; what that number is arrives in the spec's `params`, defaulted by the
+layer at 20. Each entry declaring its parameter names is what lets the loader reject a
+typo'd default — the registry is the only place that knows which keys are real.
 
 ## 5. Warehouse interface
 

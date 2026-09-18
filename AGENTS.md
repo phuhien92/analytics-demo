@@ -156,7 +156,7 @@ Redemption* 4.43 (n=317) honestly. Keep it real, never contrived.
 Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `src/server/` splits `contracts/` (a leaf), `warehouse/` (swappable), `semantic/`,
 `engine/` (pure) and `ai/`, and `tests/` carries `contracts.test.ts`,
-`engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
+`semantic.test.ts`, `engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
 
 `src/server/contracts/` is where every shared type lives, and it stays a leaf: it
 imports `zod` and its own siblings, nothing else — not `node:*`, not `next/*`, and
@@ -174,6 +174,13 @@ Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
 Interpretation runs at `output_config.effort: "low"` — it is extraction-shaped,
 not reasoning-heavy. Prompt caching sits on the stable prefix (semantic layer plus
 few-shot examples) with the user question last.
+
+**The 512-token cache floor is why two things that look like preferences are not.**
+Opus 5 does not cache a prefix below it, and falling under it fails silently — no
+error, just every question paying uncached cost. So `semantic/movielens.json` stays
+pretty-printed (measured: 2,157 bytes against 1,568 minified; ~540 tokens against
+~390, so the whitespace is what clears the floor), and GA-08's few-shot block is
+never trimmed for cost. Trimming either one *raises* the bill.
 
 ## Testing bar
 
