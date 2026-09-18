@@ -16,6 +16,9 @@ Authoritative sources, in this order:
 - `docs/how-this-was-built.md` — the running record of how each decision was
   reached, and the method that produced it. Not authoritative over the design;
   it is how the design got here.
+- `docs/build-spec.md` — the v1 build plan the sixteen increments came from. A
+  *consumed* document, not a live contract: each landed increment turns a piece of
+  it into history, and the code wins where the two disagree.
 
 If code and the docs disagree, the doc wins until the doc is changed. A change lands
 in the doc first, with its rationale, then in code — and in the right doc: technical
