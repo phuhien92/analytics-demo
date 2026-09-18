@@ -1,0 +1,91 @@
+<!-- @dsCard group="Foundations" viewport="1280x1400" name="States & focus" subtitle="Rest, hover, active, focus, selected, disabled — tab through the live specimens" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>States &amp; focus</title><link rel="stylesheet" href="../styles.css"><style>
+body{padding:var(--ga-space-3xl) var(--ga-space-4xl)}
+.wrap{display:grid;gap:var(--ga-space-3xl);max-width:1000px}
+.matrix{display:grid;grid-template-columns:110px repeat(5,minmax(0,1fr));gap:var(--ga-space-s);align-items:center}
+.matrix .h{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);letter-spacing:var(--ga-ls-micro);text-transform:uppercase;color:var(--ga-ink-muted)}
+.matrix .rowlabel{font-size:var(--ga-text-small);font-weight:var(--ga-weight-medium)}
+button{font-family:inherit;font-size:var(--ga-text-body);font-weight:var(--ga-weight-medium);line-height:1.25;padding:9px 14px;white-space:nowrap;border-radius:var(--ga-radius-s);border:1px solid transparent;cursor:pointer;transition:background-color var(--ga-dur-fast) var(--ga-ease),border-color var(--ga-dur-fast) var(--ga-ease),color var(--ga-dur-fast) var(--ga-ease);width:100%}
+.p{background:var(--ga-accent);color:var(--ga-ink-on-accent)}
+.p:hover{background:var(--ga-accent-hover)}.p:active{background:var(--ga-accent-active)}
+.s{background:var(--ga-surface);color:var(--ga-ink);border-color:var(--ga-line-strong)}
+.s:hover{background:var(--ga-raised)}.s:active{background:var(--ga-sunken)}
+.q{background:transparent;color:var(--ga-accent-ink)}
+.q:hover{background:var(--ga-accent-soft)}.q:active{background:var(--ga-accent-soft-active)}
+.forced-hover.p{background:var(--ga-accent-hover)}.forced-active.p{background:var(--ga-accent-active)}
+.forced-hover.s{background:var(--ga-raised)}.forced-active.s{background:var(--ga-sunken)}
+.forced-hover.q{background:var(--ga-accent-soft)}.forced-active.q{background:var(--ga-accent-soft-active)}
+.forced-focus{outline:var(--ga-focus-ring);outline-offset:var(--ga-focus-offset)}
+button:disabled{background:var(--ga-raised);color:var(--ga-ink-muted);border-color:var(--ga-line);cursor:not-allowed}
+input[type=text]{font-family:inherit;font-size:var(--ga-text-body);padding:11px 12px;border-radius:var(--ga-radius-s);border:1px solid var(--ga-line-strong);background:var(--ga-surface);color:var(--ga-ink);width:100%}
+input[type=text]::placeholder{color:var(--ga-ink-muted)}
+input[type=text]:hover{border-color:var(--ga-ink-muted)}
+.rows{display:grid;border:1px solid var(--ga-line);border-radius:var(--ga-radius-m);overflow:hidden;background:var(--ga-surface);max-width:560px}
+.r{display:flex;justify-content:space-between;align-items:center;gap:var(--ga-space-m);padding:var(--ga-space-s) var(--ga-space-m);border-bottom:1px solid var(--ga-line);font-size:var(--ga-text-small);background:none;border-left:0;border-right:0;border-top:0;border-radius:0;text-align:left;font-weight:var(--ga-weight-text);color:var(--ga-ink)}
+.r:last-child{border-bottom:0}
+.r:hover{background:var(--ga-raised)}.r:active{background:var(--ga-sunken)}
+.r[aria-selected=true]{background:var(--ga-accent-soft);color:var(--ga-ink);font-weight:var(--ga-weight-medium)}
+.r[aria-selected=true]::after{content:"selected";font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);letter-spacing:.04em;color:var(--ga-accent-ink)}
+.note{background:var(--ga-surface);border:1px solid var(--ga-line);border-radius:var(--ga-radius-m);padding:var(--ga-space-l);display:grid;gap:var(--ga-space-xs)}
+.ring-demo{display:flex;gap:var(--ga-space-2xl);align-items:center;flex-wrap:wrap}
+.swatchbox{display:grid;gap:var(--ga-space-xs);justify-items:center}
+</style></head><body><div class="wrap">
+
+<header style="display:grid;gap:var(--ga-space-xs)">
+<p class="ga-micro">Foundations · 04</p>
+<h1 class="ga-title">States</h1>
+<p class="ga-lead">Six states, one vocabulary. Hover steps a surface one rung down the surface ladder; active goes one further; selected is the only state that uses accent as a fill. Everything here is real — tab through it.</p>
+</header>
+
+<section style="display:grid;gap:var(--ga-space-l)">
+<h2 class="ga-subhead">Action states</h2>
+<div class="matrix">
+<span></span><span class="h">rest</span><span class="h">hover</span><span class="h">active</span><span class="h">focus</span><span class="h">disabled</span>
+<span class="rowlabel">primary</span>
+<button class="p">Ask</button><button class="p forced-hover">Ask</button><button class="p forced-active">Ask</button><button class="p forced-focus">Ask</button><button class="p" disabled>Ask</button>
+<span class="rowlabel">secondary</span>
+<button class="s">Table</button><button class="s forced-hover">Table</button><button class="s forced-active">Table</button><button class="s forced-focus">Table</button><button class="s" disabled>Table</button>
+<span class="rowlabel">quiet</span>
+<button class="q">Details</button><button class="q forced-hover">Details</button><button class="q forced-active">Details</button><button class="q forced-focus">Details</button><button class="q" disabled>Details</button>
+</div>
+<p class="ga-small" style="max-width:var(--ga-measure)">Disabled is never colour-only: it loses its fill contrast <em>and</em> carries <span class="ga-mono">aria-disabled</span>, and any control that can be disabled must say why in adjacent text.</p>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Focus ring</h2>
+<p class="ga-small" style="max-width:var(--ga-measure)">3px accent, 2px offset, outside the element's box, identical on every focusable thing including rows, disclosures, chart-table toggles and links. It is never removed, never recoloured, and never replaced by a border change.</p>
+<div class="ring-demo">
+<div class="swatchbox"><button class="s forced-focus" style="width:auto">On surface</button><span class="ga-micro">#FFFFFF</span></div>
+<div class="swatchbox" style="background:var(--ga-bg);padding:var(--ga-space-m);border-radius:var(--ga-radius-m)"><button class="s forced-focus" style="width:auto">On page ground</button><span class="ga-micro">#F6F5FC</span></div>
+<div class="swatchbox" style="background:var(--ga-sunken);padding:var(--ga-space-m);border-radius:var(--ga-radius-m)"><button class="s forced-focus" style="width:auto">On sunken</button><span class="ga-micro">#EAE7F8</span></div>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Input states</h2>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--ga-space-m);max-width:760px">
+<div style="display:grid;gap:var(--ga-space-xs)"><span class="ga-micro">rest</span><input type="text" placeholder="Ask about your data"></div>
+<div style="display:grid;gap:var(--ga-space-xs)"><span class="ga-micro">focus</span><input type="text" class="forced-focus" value="Did EMEA grow?"></div>
+<div style="display:grid;gap:var(--ga-space-xs)"><span class="ga-micro">disabled</span><input type="text" value="Connect a source first" disabled></div>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Selection</h2>
+<p class="ga-small" style="max-width:var(--ga-measure)">Accent-soft fill plus the word "selected". The word is not decoration — it is the requirement.</p>
+<div class="rows" role="listbox" aria-label="Which field did you mean by region">
+<button class="r" role="option" aria-selected="false">sales_daily.region<span class="ga-mono" style="color:var(--ga-ink-muted)">14 values</span></button>
+<button class="r" role="option" aria-selected="true">crm_accounts.region</button>
+<button class="r" role="option" aria-selected="false">finance_map.region_rollup<span class="ga-mono" style="color:var(--ga-ink-muted)">5 values</span></button>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Motion</h2>
+<div class="note">
+<p class="ga-body">State changes cross-fade colour over 110ms; anything that moves or resizes takes 180ms; overlays 280ms. Nothing animates position by more than a few pixels, and nothing loops.</p>
+<p class="ga-small">Under <span class="ga-mono">prefers-reduced-motion: reduce</span> every duration collapses to 1ms globally — states still change, they just arrive instantly.</p>
+</div>
+</section>
+
+</div></body></html>

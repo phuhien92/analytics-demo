@@ -1,0 +1,78 @@
+<!-- @dsCard group="Foundations" viewport="1280x1300" name="Space & radius" subtitle="4px base, eleven steps, five radii, four elevations" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Space &amp; radius</title><link rel="stylesheet" href="../styles.css"><style>
+body{padding:var(--ga-space-3xl) var(--ga-space-4xl)}
+.wrap{display:grid;gap:var(--ga-space-3xl);max-width:1000px}
+.steps{display:grid;gap:var(--ga-space-xs)}
+.step{display:grid;grid-template-columns:110px 60px 1fr;gap:var(--ga-space-m);align-items:center}
+.step .name{font-size:var(--ga-text-small);font-weight:var(--ga-weight-medium)}
+.step .val{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-muted)}
+.bar{height:14px;background:var(--ga-accent-soft);border:1px solid var(--ga-accent-line);border-radius:var(--ga-radius-xs)}
+.radii{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--ga-space-m)}
+.rad{display:grid;gap:var(--ga-space-xs);justify-items:start}
+.radbox{width:100%;height:84px;background:var(--ga-surface);border:1px solid var(--ga-line-strong)}
+.elev{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--ga-space-l)}
+.elevbox{background:var(--ga-surface);border:1px solid var(--ga-line);border-radius:var(--ga-radius-m);padding:var(--ga-space-l);display:grid;gap:var(--ga-space-2xs);min-height:108px;align-content:end}
+.lbl{font-size:var(--ga-text-small);font-weight:var(--ga-weight-medium)}
+.sub{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-muted)}
+.rhythm{background:var(--ga-surface);border:1px solid var(--ga-line);border-radius:var(--ga-radius-l);padding:var(--ga-space-2xl)}
+.tag{display:inline-block;font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-accent-ink);background:var(--ga-accent-soft);border:1px solid var(--ga-accent-line);border-radius:var(--ga-radius-xs);padding:1px 5px}
+</style></head><body><div class="wrap">
+
+<header style="display:grid;gap:var(--ga-space-xs)">
+<p class="ga-micro">Foundations · 03</p>
+<h1 class="ga-title">Space, radius, elevation</h1>
+<p class="ga-lead">A 4px base with eleven named steps. The large end of the scale does most of the work: this product is quiet and the page should feel underfilled rather than packed.</p>
+</header>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Spacing</h2>
+<div class="steps">
+<div class="step"><span class="name">3xs</span><span class="val">2px</span><div class="bar" style="width:2px"></div></div>
+<div class="step"><span class="name">2xs</span><span class="val">4px</span><div class="bar" style="width:4px"></div></div>
+<div class="step"><span class="name">xs</span><span class="val">8px</span><div class="bar" style="width:8px"></div></div>
+<div class="step"><span class="name">s</span><span class="val">12px</span><div class="bar" style="width:12px"></div></div>
+<div class="step"><span class="name">m</span><span class="val">16px</span><div class="bar" style="width:16px"></div></div>
+<div class="step"><span class="name">l</span><span class="val">24px</span><div class="bar" style="width:24px"></div></div>
+<div class="step"><span class="name">xl</span><span class="val">32px</span><div class="bar" style="width:32px"></div></div>
+<div class="step"><span class="name">2xl</span><span class="val">48px</span><div class="bar" style="width:48px"></div></div>
+<div class="step"><span class="name">3xl</span><span class="val">64px</span><div class="bar" style="width:64px"></div></div>
+<div class="step"><span class="name">4xl</span><span class="val">96px</span><div class="bar" style="width:96px"></div></div>
+<div class="step"><span class="name">5xl</span><span class="val">128px</span><div class="bar" style="width:128px"></div></div>
+</div>
+<p class="ga-small" style="max-width:var(--ga-measure)">Inside a control: <span class="tag">xs</span> to <span class="tag">s</span>. Between related lines: <span class="tag">xs</span>. Between blocks in a card: <span class="tag">m</span> or <span class="tag">l</span>. Card padding: <span class="tag">l</span> to <span class="tag">2xl</span>. Between sections of a page: <span class="tag">3xl</span>. Page margin: <span class="tag">4xl</span>.</p>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Radius</h2>
+<div class="radii">
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-xs)"></div><span class="lbl">xs</span><span class="sub">4px · tags, swatches</span></div>
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-s)"></div><span class="lbl">s</span><span class="sub">8px · inputs, buttons</span></div>
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-m)"></div><span class="lbl">m</span><span class="sub">12px · cards, notes</span></div>
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-l)"></div><span class="lbl">l</span><span class="sub">16px · panels</span></div>
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-xl)"></div><span class="lbl">xl</span><span class="sub">24px · sheets, the ask box</span></div>
+<div class="rad"><div class="radbox" style="border-radius:var(--ga-radius-pill)"></div><span class="lbl">pill</span><span class="sub">999px · chips, toggles</span></div>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Elevation</h2>
+<p class="ga-small" style="max-width:var(--ga-measure)">Shadows are near-invisible by design; a border does most of the separating. Depth means "this floats above the page", not "this is important".</p>
+<div class="elev">
+<div class="elevbox" style="box-shadow:var(--ga-shadow-flat)"><span class="lbl">flat</span><span class="sub">in-flow content</span></div>
+<div class="elevbox" style="box-shadow:var(--ga-shadow-card)"><span class="lbl">card</span><span class="sub">answer cards, notes</span></div>
+<div class="elevbox" style="box-shadow:var(--ga-shadow-lift)"><span class="lbl">lift</span><span class="sub">hovered, dragged</span></div>
+<div class="elevbox" style="box-shadow:var(--ga-shadow-overlay)"><span class="lbl">overlay</span><span class="sub">menus, sheets, dialogs</span></div>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Rhythm in practice</h2>
+<div class="rhythm">
+<p class="ga-micro" style="margin-bottom:var(--ga-space-xs)">you asked</p>
+<p class="ga-section" style="margin-bottom:var(--ga-space-l)">Did EMEA grow last quarter?</p>
+<p class="ga-lead" style="margin-bottom:var(--ga-space-m)">Yes — 4.2%, on 1,148,203 in net revenue.</p>
+<p class="ga-body-secondary">Padding <span class="tag">2xl</span>, label to heading <span class="tag">xs</span>, heading to answer <span class="tag">l</span>, answer to detail <span class="tag">m</span>. Nothing else.</p>
+</div>
+</section>
+
+</div></body></html>

@@ -177,6 +177,7 @@ because an amendment can be rendered as a diff the user reads before it applies.
 
 ```
 data/                         provided CSVs (source-of-truth stand-in)
+design-system/                design foundations as static source — tokens + preview cards
 scripts/build-warehouse.ts    ETL: CSV -> compiled store
 semantic/movielens.json       THE SEMANTIC LAYER — versioned data, not code
 src/

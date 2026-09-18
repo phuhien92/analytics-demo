@@ -1,0 +1,54 @@
+<!-- @dsCard group="Foundations" viewport="1280x1500" name="Type scale" subtitle="IBM Plex Sans + Plex Mono, eight roles, tabular numerals throughout" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Type scale</title><link rel="stylesheet" href="../styles.css"><style>
+body{padding:var(--ga-space-3xl) var(--ga-space-4xl)}
+.wrap{display:grid;gap:var(--ga-space-3xl);max-width:1000px}
+.row{display:grid;grid-template-columns:150px 1fr;gap:var(--ga-space-l);align-items:baseline;padding:var(--ga-space-m) 0;border-top:1px solid var(--ga-line)}
+.spec{display:grid;gap:2px}
+.spec .name{font-size:var(--ga-text-small);font-weight:var(--ga-weight-medium)}
+.spec .val{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-muted);letter-spacing:.02em;line-height:1.5}
+table{border-collapse:collapse;width:100%;max-width:560px}
+th,td{text-align:left;padding:var(--ga-space-xs) var(--ga-space-s);border-bottom:1px solid var(--ga-line);font-size:var(--ga-text-small)}
+th{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);letter-spacing:var(--ga-ls-micro);text-transform:uppercase;color:var(--ga-ink-muted);border-bottom:1px solid var(--ga-line-strong)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+</style></head><body><div class="wrap">
+
+<header style="display:grid;gap:var(--ga-space-xs)">
+<p class="ga-micro">Foundations · 02</p>
+<h1 class="ga-title">Type</h1>
+<p class="ga-lead">IBM Plex Sans for everything a person reads, IBM Plex Mono for labels, field names and anything the machine produced. Two families, eight roles, no exceptions to add later.</p>
+</header>
+
+<section>
+<div class="row"><div class="spec"><span class="name">display</span><span class="val">44px / 1.08<br>−0.022em · 600</span></div><p class="ga-display">Ask in your own words</p></div>
+<div class="row"><div class="spec"><span class="name">title</span><span class="val">32px / 1.15<br>−0.018em · 600</span></div><p class="ga-title">Revenue by region, last 11 weeks</p></div>
+<div class="row"><div class="spec"><span class="name">section</span><span class="val">24px / 1.25<br>−0.012em · 500</span></div><p class="ga-section">What was checked</p></div>
+<div class="row"><div class="spec"><span class="name">subhead</span><span class="val">19px / 1.35<br>−0.008em · 500</span></div><p class="ga-subhead">Two fields are named "region"</p></div>
+<div class="row"><div class="spec"><span class="name">lead</span><span class="val">17px / 1.6<br>−0.002em · 400</span></div><p class="ga-lead">The answer you asked for is 4.2% growth. Computed a second way, against the definition of "region" your finance team uses, it is 1.9%. Both numbers are correct; they answer different questions.</p></div>
+<div class="row"><div class="spec"><span class="name">body</span><span class="val">15px / 1.6<br>0em · 450</span></div><p class="ga-body">Default reading size. Set at weight 450 rather than 400 — Plex at 15px on a lavender ground needs the extra quarter-step to hold its edge. Measure caps at 64 characters.</p></div>
+<div class="row"><div class="spec"><span class="name">small</span><span class="val">13px / 1.5<br>secondary ink</span></div><p class="ga-small">Captions, table cells, helper text under a field. Never for anything a user must read to act correctly.</p></div>
+<div class="row"><div class="spec"><span class="name">micro</span><span class="val">12px / 1.4 · mono<br>+0.06em · uppercase</span></div><p class="ga-micro">Source · sales_daily · 41,882 rows</p></div>
+<div class="row" style="border-bottom:1px solid var(--ga-line)"><div class="spec"><span class="name">mono</span><span class="val">13px / 1.5 · mono<br>field names, values</span></div><p class="ga-mono">sum(net_revenue) where region = 'EMEA'</p></div>
+</div>
+</section>
+
+<section style="display:grid;gap:var(--ga-space-m)">
+<h2 class="ga-subhead">Numerals are tabular everywhere</h2>
+<p class="ga-small" style="max-width:var(--ga-measure)">Set globally on <span class="ga-mono">body</span> and again on tables, inputs and outputs, so a column of figures aligns without per-component work and a changing number doesn't jitter.</p>
+<table>
+<caption class="ga-micro" style="text-align:left;padding-bottom:var(--ga-space-xs)">Illustrative figures — tabular alignment</caption>
+<thead><tr><th scope="col">Region</th><th scope="col" style="text-align:right">Net revenue</th><th scope="col" style="text-align:right">Change</th></tr></thead>
+<tbody>
+<tr><td>EMEA</td><td class="n">1,148,203</td><td class="n">+4.2%</td></tr>
+<tr><td>Americas</td><td class="n">911,470</td><td class="n">−1.1%</td></tr>
+<tr><td>APAC</td><td class="n">318,006</td><td class="n">+11.8%</td></tr>
+<tr><td>Unassigned</td><td class="n">7,119</td><td class="n">+0.4%</td></tr>
+</tbody>
+</table>
+</section>
+
+<section style="border-top:1px solid var(--ga-line);padding-top:var(--ga-space-m);display:grid;gap:var(--ga-space-2xs)">
+<p class="ga-micro">rules</p>
+<p class="ga-small" style="max-width:var(--ga-measure)">Weight carries hierarchy before size does; 600 is the heaviest weight in the system. Mono is a signal, not a texture — it means "this string came from the data, not from us".</p>
+</section>
+
+</div></body></html>

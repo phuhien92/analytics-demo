@@ -1,0 +1,95 @@
+<!-- @dsCard group="Foundations" viewport="1280x1600" name="Colour tokens" subtitle="Surfaces, ink, one accent, three semantics — each with its measured contrast" -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Colour tokens</title><link rel="stylesheet" href="../styles.css"><style>
+body{padding:var(--ga-space-3xl) var(--ga-space-4xl)}
+.wrap{display:grid;gap:var(--ga-space-3xl);max-width:1000px}
+section{display:grid;gap:var(--ga-space-m)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--ga-space-m)}
+.sw{display:grid;gap:var(--ga-space-xs);align-content:start}
+.chip{height:96px;border-radius:var(--ga-radius-m);border:1px solid var(--ga-line)}
+.meta{display:grid;gap:2px}
+.name{font-size:var(--ga-text-small);font-weight:var(--ga-weight-medium);color:var(--ga-ink)}
+.val{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-muted);letter-spacing:.02em}
+.ratio{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-secondary)}
+.inkrow{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--ga-space-m)}
+.inkcard{background:var(--ga-surface);border:1px solid var(--ga-line);border-radius:var(--ga-radius-m);padding:var(--ga-space-l);display:grid;gap:var(--ga-space-xs)}
+.sem{display:grid;gap:var(--ga-space-xs);padding:var(--ga-space-m) var(--ga-space-l);border-radius:var(--ga-radius-m);border:1px solid}
+.semhead{display:flex;align-items:center;gap:var(--ga-space-xs);font-size:var(--ga-text-small);font-weight:var(--ga-weight-strong)}
+.glyph{width:18px;height:18px;display:grid;place-items:center;border-radius:var(--ga-radius-pill);border:1.5px solid currentColor;font-family:var(--ga-font-mono);font-size:11px;font-weight:500}
+.rule{border-top:1px solid var(--ga-line);padding-top:var(--ga-space-m);display:grid;gap:var(--ga-space-2xs)}
+.mono-note{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);color:var(--ga-ink-muted);letter-spacing:.02em}
+</style></head><body><div class="wrap">
+
+<header style="display:grid;gap:var(--ga-space-xs)">
+<p class="ga-micro">Foundations · 01</p>
+<h1 class="ga-title">Colour</h1>
+<p class="ga-lead">One accent carries every piece of emphasis. Semantic colour never carries meaning by itself: each of the three semantic grounds below is paired with a word and a mark, so removing colour loses nothing.</p>
+</header>
+
+<section>
+<h2 class="ga-subhead">Surfaces</h2>
+<p class="ga-small">A four-step ladder. Hover moves a surface one step down it; nothing else changes depth.</p>
+<div class="grid">
+<div class="sw"><div class="chip" style="background:var(--ga-bg)"></div><div class="meta"><span class="name">bg</span><span class="val">#F6F5FC</span><span class="ratio">page ground</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-surface)"></div><div class="meta"><span class="name">surface</span><span class="val">#FFFFFF</span><span class="ratio">cards, sheets, inputs</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-raised)"></div><div class="meta"><span class="name">raised</span><span class="val">#F2F0FB</span><span class="ratio">hover, quiet fills</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-sunken)"></div><div class="meta"><span class="name">sunken</span><span class="val">#EAE7F8</span><span class="ratio">pressed, wells, tracks</span></div></div>
+</div>
+</section>
+
+<section>
+<h2 class="ga-subhead">Ink</h2>
+<div class="inkrow">
+<div class="inkcard"><p style="color:var(--ga-ink);font-size:var(--ga-text-lead)">Revenue moved because two stores reopened.</p><span class="name">ink.primary</span><span class="val">#1C1830</span><span class="ratio">15.9:1 on bg · 17.2:1 on surface</span></div>
+<div class="inkcard"><p style="color:var(--ga-ink-secondary);font-size:var(--ga-text-lead)">Revenue moved because two stores reopened.</p><span class="name">ink.secondary</span><span class="val">#524C6B</span><span class="ratio">7.5:1 on bg · 8.1:1 on surface</span></div>
+<div class="inkcard"><p style="color:var(--ga-ink-muted);font-size:var(--ga-text-lead)">Revenue moved because two stores reopened.</p><span class="name">ink.muted</span><span class="val">#655F7C</span><span class="ratio">5.6:1 on bg · 6.0:1 on surface</span></div>
+</div>
+</section>
+
+<section>
+<h2 class="ga-subhead">Accent</h2>
+<p class="ga-small" style="max-width:var(--ga-measure)">The single emphasis colour: focus rings, the primary action, the one thing on a screen that wants the eye. If two things on a screen are accent-coloured, one of them is wrong. Azure is bright enough that it splits in two — the fill colour is too light to also serve as text on a soft ground, so accent-coloured <em>text</em> uses the darker <span class="ga-mono">accent.ink</span>.</p>
+<div class="grid" style="grid-template-columns:repeat(5,1fr)">
+<div class="sw"><div class="chip" style="background:var(--ga-accent);display:grid;place-items:center;color:var(--ga-ink-on-accent);font-weight:var(--ga-weight-medium)">On accent</div><div class="meta"><span class="name">accent</span><span class="val">#0A6FD1</span><span class="ratio">fills, rings · white on it 5.0:1</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-accent-ink)"></div><div class="meta"><span class="name">accent.ink</span><span class="val">#0A5CAF</span><span class="ratio">text · 6.6:1 on surface · 5.7:1 on soft</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-accent-soft);display:grid;place-items:center;color:var(--ga-accent-ink);font-weight:var(--ga-weight-medium)">On soft</div><div class="meta"><span class="name">accent.soft</span><span class="val">#E5EFFB</span><span class="ratio">selected fill, quiet hover</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-accent-soft-active);display:grid;place-items:center;color:var(--ga-accent-ink);font-weight:var(--ga-weight-medium)">Pressed</div><div class="meta"><span class="name">accent.soft.active</span><span class="val">#CFE2F8</span><span class="ratio">pressed quiet ground · 5.0:1 on soft ink</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-accent-line)"></div><div class="meta"><span class="name">accent.line</span><span class="val">#B4D0F2</span><span class="ratio">borders only, never text</span></div></div>
+</div>
+</section>
+
+<section>
+<h2 class="ga-subhead">Lines</h2>
+<div class="grid">
+<div class="sw"><div class="chip" style="background:var(--ga-surface);border-color:var(--ga-line);border-width:2px"></div><div class="meta"><span class="name">line</span><span class="val">#E3DFF2</span><span class="ratio">default divider, card edge</span></div></div>
+<div class="sw"><div class="chip" style="background:var(--ga-surface);border-color:var(--ga-line-strong);border-width:2px"></div><div class="meta"><span class="name">line.strong</span><span class="val">#D3CDEA</span><span class="ratio">input edge, table rule, axis</span></div></div>
+</div>
+</section>
+
+<section>
+<h2 class="ga-subhead">Semantic grounds</h2>
+<p class="ga-small">Three, and only three. Each is a ground plus an ink plus a line, and each must appear with the label shown.</p>
+<div style="display:grid;gap:var(--ga-space-s)">
+<div class="sem" style="background:var(--ga-caution-bg);border-color:var(--ga-caution-line);color:var(--ga-caution-ink)">
+<div class="semhead"><span class="glyph">!</span>Check this</div>
+<p style="color:var(--ga-caution-ink);font-size:var(--ga-text-small);max-width:var(--ga-measure)">The question as asked would have misled you. Two of the eleven weeks have no data behind them.</p>
+<span class="val" style="color:var(--ga-caution-ink)">caution.bg #FFF6E8 · ink #7A4E00 (6.7:1) · line #EBCF9E</span>
+</div>
+<div class="sem" style="background:var(--ga-good-bg);border-color:var(--ga-good-line);color:var(--ga-good-ink)">
+<div class="semhead"><span class="glyph">✓</span>Checked, held up</div>
+<p style="color:var(--ga-good-ink);font-size:var(--ga-text-small);max-width:var(--ga-measure)">Recomputed against the raw rows and against last month's definition of "active". Same answer both ways.</p>
+<span class="val" style="color:var(--ga-good-ink)">good.bg #E9F6EF · ink #17603A (6.8:1) · line #A9D7BF</span>
+</div>
+<div class="sem" style="background:var(--ga-risk-bg);border-color:var(--ga-risk-line);color:var(--ga-risk-ink)">
+<div class="semhead"><span class="glyph">×</span>Don't rely on this</div>
+<p style="color:var(--ga-risk-ink);font-size:var(--ga-text-small);max-width:var(--ga-measure)">Two fields named "region" disagree. The answer changes by 31% depending on which one you meant.</p>
+<span class="val" style="color:var(--ga-risk-ink)">risk.bg #FBF2F2 · ink #8A2F2F (7.6:1) · line #E8C4C4</span>
+</div>
+</div>
+</section>
+
+<section class="rule">
+<p class="mono-note">rules</p>
+<p class="ga-small" style="max-width:var(--ga-measure)">Colour is never the only carrier of meaning — every semantic ground ships with its label and mark. Accent is reserved; it is not a decoration. The word "verified" does not appear in product copy: say what was checked.</p>
+</section>
+
+</div></body></html>

@@ -1,0 +1,149 @@
+/* Golden Analytics — foundations
+   Tokens, type scale, spacing/radius scales, interaction states.
+   Colour values are fixed: contrast-checked at WCAG 2.1 AA. */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,450;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root{
+  /* ── surfaces ───────────────────────────────── */
+  --ga-bg:#F6F5FC;
+  --ga-surface:#FFFFFF;
+  --ga-raised:#F2F0FB;
+  --ga-sunken:#EAE7F8;
+
+  /* ── ink ────────────────────────────────────── */
+  --ga-ink:#1C1830;
+  --ga-ink-secondary:#524C6B;
+  --ga-ink-muted:#655F7C;
+  --ga-ink-on-accent:#FFFFFF;
+
+  /* ── accent (the only emphasis colour) ──────── */
+  --ga-accent:#0A6FD1;        /* fills, rings, borders */
+  --ga-accent-ink:#0A5CAF;    /* accent-coloured TEXT: 6.6:1 on surface, 5.7:1 on accent.soft */
+  --ga-accent-hover:#0961B7;
+  --ga-accent-active:#08539E;
+  --ga-accent-soft:#E5EFFB;
+  --ga-accent-soft-active:#CFE2F8; /* pressed quiet ground: 5.0:1 against accent.ink */
+  --ga-accent-line:#B4D0F2;
+
+  /* ── lines ──────────────────────────────────── */
+  --ga-line:#E3DFF2;
+  --ga-line-strong:#D3CDEA;
+
+  /* ── semantic (never alone: always with a label) ── */
+  --ga-caution-bg:#FFF6E8;  --ga-caution-ink:#7A4E00;  --ga-caution-line:#EBCF9E;
+  --ga-good-bg:#E9F6EF;     --ga-good-ink:#17603A;     --ga-good-line:#A9D7BF;
+  --ga-risk-bg:#FBF2F2;     --ga-risk-ink:#8A2F2F;     --ga-risk-line:#E8C4C4;
+
+  /* ── type ───────────────────────────────────── */
+  --ga-font-sans:"IBM Plex Sans","Helvetica Neue",Helvetica,system-ui,sans-serif;
+  --ga-font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  --ga-text-display:2.75rem;  --ga-lh-display:1.08; /* @kind other */  --ga-ls-display:-0.022em;
+  --ga-text-title:2rem;       --ga-lh-title:1.15; /* @kind other */    --ga-ls-title:-0.018em;
+  --ga-text-section:1.5rem;   --ga-lh-section:1.25; /* @kind other */  --ga-ls-section:-0.012em;
+  --ga-text-subhead:1.1875rem;--ga-lh-subhead:1.35; /* @kind other */  --ga-ls-subhead:-0.008em;
+  --ga-text-lead:1.0625rem;   --ga-lh-lead:1.6; /* @kind other */      --ga-ls-lead:-0.002em;
+  --ga-text-body:0.9375rem;   --ga-lh-body:1.6; /* @kind other */      --ga-ls-body:0em;
+  --ga-text-small:0.8125rem;  --ga-lh-small:1.5; /* @kind other */     --ga-ls-small:0.002em;
+  --ga-text-micro:0.75rem;    --ga-lh-micro:1.4; /* @kind other */     --ga-ls-micro:0.06em;
+
+  --ga-weight-regular:400;
+  --ga-weight-text:450;
+  --ga-weight-medium:500;
+  --ga-weight-strong:600;
+
+  /* ── spacing (4px base) ─────────────────────── */
+  --ga-space-3xs:2px;  --ga-space-2xs:4px;  --ga-space-xs:8px;
+  --ga-space-s:12px;   --ga-space-m:16px;   --ga-space-l:24px;
+  --ga-space-xl:32px;  --ga-space-2xl:48px; --ga-space-3xl:64px;
+  --ga-space-4xl:96px; --ga-space-5xl:128px;
+
+  /* ── radius ─────────────────────────────────── */
+  --ga-radius-xs:4px;  --ga-radius-s:8px;   --ga-radius-m:12px;
+  --ga-radius-l:16px;  --ga-radius-xl:24px; --ga-radius-pill:999px;
+
+  /* ── elevation (restrained; light on lavender) ── */
+  --ga-shadow-flat:none;
+  --ga-shadow-card:0 1px 2px rgba(28,24,48,.04), 0 2px 8px rgba(28,24,48,.04);
+  --ga-shadow-lift:0 2px 4px rgba(28,24,48,.05), 0 8px 24px rgba(28,24,48,.07);
+  --ga-shadow-overlay:0 8px 16px rgba(28,24,48,.07), 0 24px 56px rgba(28,24,48,.12);
+
+  /* ── focus ──────────────────────────────────── */
+  --ga-focus-width:3px;
+  --ga-focus-offset:2px;
+  --ga-focus-color:var(--ga-accent);
+  --ga-focus-ring:var(--ga-focus-width) solid var(--ga-focus-color);
+
+  /* ── motion ─────────────────────────────────── */
+  --ga-ease:cubic-bezier(.2,.6,.25,1); /* @kind other */
+  --ga-dur-fast:110ms; /* @kind other */
+  --ga-dur:180ms; /* @kind other */
+  --ga-dur-slow:280ms; /* @kind other */
+
+  /* ── measure ────────────────────────────────── */
+  --ga-measure:64ch;
+  --ga-measure-narrow:46ch;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+
+html{-webkit-text-size-adjust:100%}
+
+body{
+  margin:0;
+  background:var(--ga-bg);
+  color:var(--ga-ink);
+  font-family:var(--ga-font-sans);
+  font-size:var(--ga-text-body);
+  font-weight:var(--ga-weight-text);
+  line-height:var(--ga-lh-body);
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1,"cv05" 1;
+  -webkit-font-smoothing:antialiased;
+  text-wrap:pretty;
+}
+
+/* All numerals tabular, everywhere, including inside components. */
+table,td,th,input,output,data,time,.ga-num,[data-numeric]{
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+}
+
+h1,h2,h3,h4,p,figure,blockquote,dl,dd{margin:0}
+ul,ol{margin:0}
+
+/* ── type roles ─────────────────────────────── */
+.ga-display{font-size:var(--ga-text-display);line-height:var(--ga-lh-display);letter-spacing:var(--ga-ls-display);font-weight:var(--ga-weight-strong);color:var(--ga-ink)}
+.ga-title{font-size:var(--ga-text-title);line-height:var(--ga-lh-title);letter-spacing:var(--ga-ls-title);font-weight:var(--ga-weight-strong);color:var(--ga-ink)}
+.ga-section{font-size:var(--ga-text-section);line-height:var(--ga-lh-section);letter-spacing:var(--ga-ls-section);font-weight:var(--ga-weight-medium);color:var(--ga-ink)}
+.ga-subhead{font-size:var(--ga-text-subhead);line-height:var(--ga-lh-subhead);letter-spacing:var(--ga-ls-subhead);font-weight:var(--ga-weight-medium);color:var(--ga-ink)}
+.ga-lead{font-size:var(--ga-text-lead);line-height:var(--ga-lh-lead);letter-spacing:var(--ga-ls-lead);font-weight:var(--ga-weight-regular);color:var(--ga-ink-secondary);max-width:var(--ga-measure)}
+.ga-body{font-size:var(--ga-text-body);line-height:var(--ga-lh-body);color:var(--ga-ink);max-width:var(--ga-measure)}
+.ga-body-secondary{font-size:var(--ga-text-body);line-height:var(--ga-lh-body);color:var(--ga-ink-secondary);max-width:var(--ga-measure)}
+.ga-small{font-size:var(--ga-text-small);line-height:var(--ga-lh-small);color:var(--ga-ink-secondary)}
+.ga-micro{font-family:var(--ga-font-mono);font-size:var(--ga-text-micro);line-height:var(--ga-lh-micro);letter-spacing:var(--ga-ls-micro);text-transform:uppercase;color:var(--ga-ink-muted)}
+.ga-mono{font-family:var(--ga-font-mono);font-size:var(--ga-text-small);line-height:var(--ga-lh-small)}
+
+/* ── links ──────────────────────────────────── */
+a{color:var(--ga-accent-ink);text-decoration:underline;text-decoration-color:var(--ga-accent-line);text-underline-offset:2px;text-decoration-thickness:1px}
+a:hover{text-decoration-color:var(--ga-accent-ink);text-decoration-thickness:2px}
+a:active{color:var(--ga-accent-active)}
+
+/* ── focus: one ring, everywhere, always visible ── */
+:focus-visible{outline:var(--ga-focus-ring);outline-offset:var(--ga-focus-offset);border-radius:var(--ga-radius-xs)}
+:focus:not(:focus-visible){outline:none}
+.ga-focus-ring{outline:var(--ga-focus-ring);outline-offset:var(--ga-focus-offset)}
+
+/* ── interaction state recipes ──────────────── */
+/* Surfaces step down the surface ladder on hover: surface → raised → sunken. */
+.ga-interactive{transition:background-color var(--ga-dur-fast) var(--ga-ease),border-color var(--ga-dur-fast) var(--ga-ease),box-shadow var(--ga-dur) var(--ga-ease),color var(--ga-dur-fast) var(--ga-ease)}
+.ga-state-hover-surface:hover{background:var(--ga-raised)}
+.ga-state-active-surface:active{background:var(--ga-sunken)}
+.ga-state-selected{background:var(--ga-accent-soft);border-color:var(--ga-accent);color:var(--ga-ink)}
+.ga-state-selected::before{content:"\2713";margin-right:.4em;color:var(--ga-accent-ink);font-weight:var(--ga-weight-medium)}
+.ga-state-disabled,[aria-disabled="true"],:disabled{color:var(--ga-ink-muted);background:var(--ga-raised);border-color:var(--ga-line);box-shadow:none;cursor:not-allowed}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important;scroll-behavior:auto !important}
+}
