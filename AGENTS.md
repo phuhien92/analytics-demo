@@ -154,9 +154,16 @@ Redemption* 4.43 (n=317) honestly. Keep it real, never contrived.
 ## Layout and stack
 
 Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
-`src/server/` splits `warehouse/` (swappable), `semantic/`, `engine/` (pure) and
-`ai/`, and `tests/` carries `engine.test.ts`, `conformance/` and
-`evals/questions.jsonl`.
+`src/server/` splits `contracts/` (a leaf), `warehouse/` (swappable), `semantic/`,
+`engine/` (pure) and `ai/`, and `tests/` carries `contracts.test.ts`,
+`engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
+
+`src/server/contracts/` is where every shared type lives, and it stays a leaf: it
+imports `zod` and its own siblings, nothing else — not `node:*`, not `next/*`, and
+nothing under `warehouse/`, `engine/` or `ai/`, because the client imports it too.
+Every schema in it is `z.strictObject()`; `.strict()` is Zod 3's form and still works
+through the v4 compatibility surface, so it fails silently rather than loudly and is
+banned from the module.
 
 Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 on
 `claude-opus-5` · Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.

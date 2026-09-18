@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: not started.** No increment has landed. The per-increment ticks below are all empty.
+**Status: in progress.** GA-01 has landed; the remaining fifteen ticks below are empty.
 
 ## What this document is
 
@@ -43,9 +43,8 @@ this is the record.
 
 - [`docs/design.md`](design.md) — the product argument: who this is for, and what the wedge is.
 - `docs/architecture.md` — the technical decisions, including every implementer choice that has
-  migrated out of §7 of this file. *(Not yet written; the split out of `design.md` is in flight.)*
+  migrated out of §7 of this file.
 - `docs/how-this-was-built.md` — the decision history, written as each increment lands.
-  *(Not yet written.)*
 - [github.com/phuhien92/analytics-demo/issues](https://github.com/phuhien92/analytics-demo/issues) —
   live status. This file does not track progress beyond the ticks.
 
@@ -184,7 +183,10 @@ survive the renumbering.
 
 **Size** M — one session · **Depends on** nothing
 
-**Landed** — not yet.
+**Landed** 2026-09-18 · [PR #18](https://github.com/phuhien92/analytics-demo/pull/18). Decisions recorded in
+`docs/how-this-was-built.md` part three; the standing technical record is `docs/architecture.md` §2.
+From here this definition of done is a record of what was built, not an instruction to keep code
+matching it.
 
 **Delivers.** A Next.js 16.3.5 App Router TypeScript app in strict mode; **zod@^4 pinned** (the SDK's structured-output helper imports `zod/v4`); the SDK, Observable Plot and Vitest installed but unused; and **src/server/contracts/** — every type the rest of the build reads, including `tieBreak` required and `asOf` nullable. Schemas use **`z.strictObject()`**, Zod 4's API — not the v3 `.strict()` form.
 
@@ -604,236 +606,16 @@ name, keep the doc's name.
 `tests/semantic.test.ts`, `tests/rejection.test.ts`, `tests/ui/`, `tests/ai/`. Not layout changes;
 §5's own comment on `warehouse/` is "(swappable)", which the second adapter is the point of.
 
-### 4.3 The exact shape of the types
+### 4.3 and 4.4 — deleted when GA-01 landed
 
-> **⏳ TIME-BOXED — this section is deleted when GA-01 lands.**
-> The moment `src/server/contracts/` exists it is the truth, and the *why* belongs in
-> `docs/architecture.md`. A Zod listing kept here alongside shipped contracts is a second source of
-> truth that drifts within a week. **Deleting §4.3 and §4.4, and carrying their surviving reasoning
-> into `docs/architecture.md`, is part of GA-01's own definition of done** (§3, GA-01) — otherwise
-> the deletion is nobody's job and never happens. Until then this listing is the spec.
+Both were time-boxed to increment 1 and deleted as part of its definition of done. The shape of the
+types is now `src/server/contracts/`; the tests that prove it are `tests/contracts.test.ts`; and the
+reasoning that outlived both — why `contracts/` is a leaf module of its own, why strictness is what
+makes "no joins" structural, why `tieBreak` is required, why `asOf` is paired with `resolvedAsOf`,
+and where `MAX_LIMIT` comes from — is in `docs/architecture.md` §2.
 
-```ts
-// contracts/ids.ts — nothing dataset-specific ever lands here (invariant 6)
-export type MeasureId   = string & { readonly __brand: "MeasureId" }
-export type DimensionId = string & { readonly __brand: "DimensionId" }
-export type GuardId     = string & { readonly __brand: "GuardId" }
-```
-
-```ts
-// contracts/query-spec.ts
-import { z } from "zod"
-
-/** Bound derived from measured dimension cardinality — see §7, implementer decision 1. */
-export const MAX_LIMIT = 120
-/** What the narrate call may ever receive. A different invariant, deliberately a different number. */
-export const NARRATE_ROW_CAP = 20
-
-export const FilterSchema = z.strictObject({
-  dimension: z.string(),
-  op:        z.enum(["eq", "in", "gte", "lte", "between"]),
-  value:     z.union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))]),
-})
-
-export const GuardRefSchema = z.strictObject({
-  id:     z.string(),                       // GuardId, resolved against the registry at load
-  params: z.record(z.string(), z.number()), // two-arg form: v4 requires key AND value
-})
-
-export const SortSchema = z.strictObject({
-  by:       z.enum(["measure", "breakdown"]),
-  dir:      z.enum(["asc", "desc"]),
-  tieBreak: z.string(),                     // DimensionId. REQUIRED — see note below
-})
-
-/** The executable spec. Every adapter reads exactly this. */
-export const QuerySpecSchema = z.strictObject({
-  measure:   z.string(),
-  breakdown: z.string().optional(),
-  filters:   z.array(FilterSchema).default([]),
-  sort:      SortSchema,
-  limit:     z.number().int().min(1).max(MAX_LIMIT),
-  guards:    z.array(GuardRefSchema),
-  asOf:      z.string().datetime().nullable(),   // ISO-8601 UTC; null = latest
-})
-
-/** What the model is allowed to emit. Derived from the same schema — one artifact, two surfaces. */
-export const ModelQuerySpecSchema = QuerySpecSchema
-  .omit({ sort: true, asOf: true })
-  .extend({ sort: SortSchema.omit({ tieBreak: true }) })
-  // strictness is inherited from QuerySpecSchema's catchall — asserted, not assumed (test 1b)
-
-export type QuerySpec      = z.infer<typeof QuerySpecSchema>
-export type ModelQuerySpec = z.infer<typeof ModelQuerySpecSchema>
-```
-
-Four properties are doing real work here.
-
-**`z.strictObject()` is what makes "no joins" structural.** The design says joins are not expressible
-because there is no join field. Without strictness that is true of the *type* but not of the
-*validator* — a model emitting `{"joins": [...]}` would parse, the field would be ignored, and the
-design's strongest claim would rest on nothing being read rather than nothing being accepted. With
-it, the spec is rejected. GA-01's first test is exactly this.
-
-`strictObject` sets the schema's catchall to `never()`, and an undeclared key raises an
-`unrecognized_keys` issue. That issue carries `continue: true`, so parsing does not abort — but the
-issue is still collected, so `safeParse` returns `success: false` and `parse` throws. The rejection
-the design depends on holds; it is worth stating precisely, because "continue" in the source reads
-like leniency and is not.
-
-**Corrected against the Zod 4 docs, 2026-09-18.** This listing first used the v3 idiom
-`z.object({...}).strict()` on a project that pins `zod@^4`. `.strict()` now appears only on Zod 4's
-v3-compatibility page; `z.strictObject()` is the v4 API. The old form still works through the compat
-surface, so this would not have failed loudly — it would have shipped the wrong idiom into increment
-one, in the file every later increment imports, and been copied from there for the rest of the build.
-`z.record(z.string(), z.number())` was checked at the same time and is correct as written: v4 requires
-the two-argument form, and the single-argument form is v3-only.
-
-**`tieBreak` is required, not optional.** An optional tie-break is no tie-break: an adapter may
-legitimately omit it and the 296-way tie at 5.00 resolves differently again. Four reasonable
-implementations were measured producing three different answers, so this field is the difference
-between invariant 10 being provable and not. The model never chooses it — `ModelQuerySpecSchema`
-omits it and `resolveSpec()` fills it from the layer's declared default before validation.
-
-**`asOf` is nullable on the spec and never null in provenance.** `null` means "latest", which only
-the engine can resolve; the provenance records what "latest" meant. Spec-only fails because a
-conformance case pinned at "latest" expires the moment the next payload lands. Provenance-only fails
-because you can then *explain* a past answer but not *re-run* it — and re-running is exactly what the
-conformance suite does. The pairing is the design: the spec asks, the provenance records what it got.
-
-**Two limits, not one.** `MAX_LIMIT` bounds what the client and chart receive; `NARRATE_ROW_CAP`
-bounds what the narrate call receives. They serve different invariants and collapsing them into one
-number means either a year breakdown is inexpressible or the narrate call sees more than ~20 rows.
-
-```ts
-// contracts/result-set.ts
-export const ProvenanceSchema = z.strictObject({
-  requestId:          z.string(),
-  adapterId:          z.string(),
-  sourceId:           z.string(),      // names the received payload's source, not a file
-  layerVersion:       z.string(),
-  layerSchemaVersion: z.number().int(),
-  resolvedAsOf:       z.string().datetime(),   // NEVER nullable — a null is unconstructible
-  engineVersion:      z.string(),
-  computedAt:         z.string().datetime(),
-})
-
-export const ResultRowSchema = z.strictObject({
-  key:      z.string().nullable(),     // breakdown member; null when there is no breakdown
-  value:    z.number(),                // presentation scale
-  rawValue: z.number().int(),          // scaled integer, as stored
-  n:        z.number().int(),          // observations behind this row
-})
-
-export const TrustReportSchema = z.strictObject({
-  guardsApplied: z.array(z.strictObject({
-    id: z.string(), params: z.record(z.string(), z.number()),
-    explanation: z.string(), excluded: z.number().int(),
-  })),
-  coverage: z.strictObject({
-    includedObservations: z.number().int(),
-    totalObservations:    z.number().int(),
-    includedMembers:      z.number().int(),
-    totalMembers:         z.number().int(),
-  }),
-  notes:      z.array(z.string()),     // e.g. the 13 undated titles — see §6, C4
-  comparison: z.strictObject({
-    material: z.boolean(),
-    naive:    z.array(ResultRowSchema),
-    honest:   z.array(ResultRowSchema),
-  }).nullable(),
-})
-
-export const ResultSetSchema = z.strictObject({
-  spec: QuerySpecSchema, rows: z.array(ResultRowSchema),
-  trust: TrustReportSchema, provenance: ProvenanceSchema,
-})
-```
-
-```ts
-// contracts/spec-patch.ts — a closed set of operations, not a deep partial
-export const SpecPatchSchema = z.strictObject({
-  basedOn:       z.string(),                              // parent requestId
-  measure:       z.string().optional(),
-  breakdown:     z.union([z.string(), z.null()]).optional(),   // null clears the breakdown
-  addFilters:    z.array(FilterSchema).default([]),
-  removeFilters: z.array(z.string()).default([]),         // by dimension id
-  sort:          SortSchema.partial().optional(),
-  limit:         z.number().int().min(1).max(MAX_LIMIT).optional(),
-  setGuards:     z.array(GuardRefSchema).optional(),
-  reAsOf:        z.string().datetime().nullable().optional(),
-})
-```
-
-**`reAsOf` absent ≠ `reAsOf: null`, and the distinction is load-bearing.** Absent means *inherit the
-parent's `resolvedAsOf`* — "now just EU" interrogates the same snapshot. `null` means *re-resolve to
-latest*, which is a deliberate time-travel operation the user asked for. This is why the field is
-`.optional()` rather than defaulted: `"reAsOf" in patch` must remain a real discriminator.
-
-```ts
-// contracts/rejection.ts — a returned value, never a throw
-export const RejectionSchema = z.strictObject({
-  kind:   z.literal("clarify"),
-  asked:  z.string(),
-  missing: z.array(z.strictObject({
-    what: z.string(),
-    kind: z.enum(["measure", "dimension", "filter", "guard", "timeframe"]),
-  })),
-  declared: z.strictObject({
-    measures: z.array(z.string()), dimensions: z.array(z.string()),
-  }),
-  nearest: z.array(z.strictObject({ question: z.string(), spec: QuerySpecSchema })),
-})
-
-// contracts/answer.ts — the union is what forces every caller to handle rejection
-export const AnswerSchema = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true),  requestId: z.string(), degraded: z.boolean(),
-             resultSet: ResultSetSchema }),
-  z.strictObject({ ok: z.literal(false), requestId: z.string(), degraded: z.boolean(),
-             rejection: RejectionSchema }),
-])
-```
-
-The rejection path is invariant 4's whole mechanism, so it is a value and not an exception. A throw
-is caught somewhere generic and rendered as an error; a returned object is rendered as the clarifying
-question that *is* the product working. It also means showcasing refusal later is a rendering change
-rather than rebuilding the path.
-
-### 4.4 The tests that prove GA-01
-
-`tests/contracts.test.ts`, ten cases, no data and no network:
-
-1. `QuerySpecSchema.safeParse({...valid, joins: [...]})` **fails** — and the same for `sql` and
-   `join`. This is "the model cannot express the mistake", asserted rather than assumed. Assert on
-   `success === false` and on the issue's `code` being `unrecognized_keys`, not merely on a throw:
-   `strictObject`'s unknown-key issue carries `continue: true`, so a test that only checks "did it
-   abort" would pass for the wrong reason.
-   - **1b.** **`ModelQuerySpecSchema.safeParse({...valid, joins: [...]})` also fails.** The model schema is
-     *derived* from `QuerySpecSchema` through `.omit().extend()`, and it is the one the model actually
-     emits into — so the surface that faces the model is the one that most needs the guarantee.
-     Whether the derivation preserves the `never()` catchall is an implementation detail of Zod that a
-     minor release could change, which is exactly why this is a test and not an assumption.
-2. `limit` of `0`, `-1` and `MAX_LIMIT + 1` fail; `1` and `MAX_LIMIT` pass.
-3. A spec omitting `sort.tieBreak` fails `QuerySpecSchema` and passes `ModelQuerySpecSchema`.
-4. `asOf: null` passes on `QuerySpecSchema`; `resolvedAsOf: null` fails on `ProvenanceSchema`.
-5. `resolveSpec(modelSpec, layerStub, asOfStub)` produces a value that `QuerySpecSchema.parse`
-   accepts, with `tieBreak` taken from the layer default. (`resolveSpec` is stubbed against a fixture
-   layer here; GA-04 gives it the real one.)
-6. On `SpecPatchSchema`, a patch without `reAsOf` parses to an object where `"reAsOf" in patch` is
-   `false`, and `{reAsOf: null}` parses to one where it is `true` with value `null` — the
-   absent-versus-null discriminator survives parsing.
-7. `AnswerSchema` exhaustiveness: a `switch` over `answer.ok` with a `never` check in the default
-   branch compiles, proving the union forces both paths.
-8. An invalid nested field produces a Zod issue whose `path` is `["sort","dir"]` — validation errors
-   point at the offending path, because under the eval-driven loop the person reading that message is
-   whoever is adding structure to fix a failing eval.
-9. `zodOutputFormat(ModelQuerySpecSchema)` returns a JSON Schema without throwing, importing it from
-   `@anthropic-ai/sdk/helpers/zod`. This catches at increment 1 any Zod construct that does not
-   survive conversion for structured outputs — notably `z.record` in `GuardRefSchema.params` — rather
-   than at GA-08, seven increments later.
-
-**Also asserted at the repo level:** `npx tsc --noEmit` clean, `npm run build` succeeds,
-`grep -rn "output_format" src/ tests/` empty.
+A Zod listing kept here beside shipped contracts would be a second source of truth, which is this
+product's own failure mode pointed at its documentation.
 
 ---
 ---
@@ -931,21 +713,20 @@ What changed in the spec:
 Open choices, each with a recommendation. **This list empties as the build proceeds:** as each is
 settled it moves to `docs/architecture.md` and leaves this file.
 
-1. **`MAX_LIMIT = 120`, `NARRATE_ROW_CAP = 20`.** Measured here: the largest declared non-title
-   dimension is release year at **106 members** (genre 19, rating year 23, release decade 12, title
-   9,742). 120 leaves a year breakdown expressible with headroom; the narrate cap is separate because
-   it serves a different invariant.
-2. **The materiality threshold** for `materiallyDifferent`: any change in the top-`limit` row-set
+1. **The materiality threshold** for `materiallyDifferent`: any change in the top-`limit` row-set
    membership, or a measure delta of at least one presentation step. Declared in the layer, not the
    engine.
-3. **`asOf` wire format:** ISO-8601 UTC on the spec, because it is diffable and pasteable into the
+2. **`asOf` wire format:** ISO-8601 UTC on the spec, because it is diffable and pasteable into the
    shareable artifact; unix seconds internally, where the comparison happens.
-4. **SQLite driver:** `node:sqlite` (which still prints an `ExperimentalWarning` on Node 22),
+3. **SQLite driver:** `node:sqlite` (which still prints an `ExperimentalWarning` on Node 22),
    CI-only, warning suppressed in the test runner. `better-sqlite3` adds a native build to a project
    whose selling point is a zero-config `npm install`.
-5. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
+4. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
-6. **Vitest pin** at scaffold time (5.0.1 was `latest` on 2026-09-18).
+
+**Settled and migrated out.** `MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
+measurement that grounds them, and the Vitest pin — both settled by GA-01 and now standing in
+`docs/architecture.md` §2 and §10.
 
 ---
 

@@ -1,5 +1,28 @@
+# dependencies
 node_modules/
-.next/
-.env*.local
+
+# next.js
+/.next/
+/out/
+
+# testing
+/coverage
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# env files — .env.example is committed on purpose
+.env*
+!.env.example
+
+# debug
+npm-debug.log*
+
+# vercel
+.vercel
+
+# misc
 .DS_Store
+*.pem
 .firecrawl/

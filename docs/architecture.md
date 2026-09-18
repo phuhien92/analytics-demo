@@ -78,6 +78,15 @@ scripts/build-warehouse.ts    ETL: CSV -> compiled store
 semantic/movielens.json       THE SEMANTIC LAYER — versioned data, not code
 src/
   server/
+    contracts/                THE CORE CONTRACTS — a leaf module; see section 2
+      ids.ts                    branded MeasureId / DimensionId / GuardId
+      query-spec.ts             QuerySpec, ModelQuerySpec, Sort, Filter, GuardRef
+      spec-patch.ts             SpecPatch
+      result-set.ts             ResultSet, ResultRow, TrustReport, Provenance
+      rejection.ts              Rejection
+      answer.ts                 Answer discriminated union
+      payload.ts                ReceivedPayload envelope
+      semantic-layer.ts         the layer's schema
     warehouse/                DATA ACCESS LAYER (swappable)
       types.ts                  interface Warehouse { aggregate(spec) }
       local-store.ts            typed-array adapter
@@ -98,12 +107,13 @@ src/
   components/                 QuestionBox, AnswerCard, RecipeSentence,
                               Chart, NaiveComparison, ProvenanceDrawer
 tests/
+  contracts.test.ts           the core contracts hold their shape
   engine.test.ts
   conformance/                spec -> expected numbers; EVERY adapter must pass
   evals/questions.jsonl       question -> expected-spec pairs
 ```
 
-## 2. The QuerySpec
+## 2. The QuerySpec and the core contracts
 
 The central artifact. Every safety property falls out of its shape.
 
@@ -112,11 +122,17 @@ type QuerySpec = {
   measure:    MeasureId
   breakdown?: DimensionId
   filters:    Filter[]
-  sort:       { by: "measure" | "breakdown"; dir: "asc" | "desc" }
+  sort:       { by: "measure" | "breakdown"; dir: "asc" | "desc"; tieBreak: DimensionId }
   limit:      number
   guards:     Array<{ id: GuardId; params: Record<string, number> }>
+  asOf:       string | null        // ISO-8601 UTC; null = latest
 }
 ```
+
+`src/server/contracts/` is the shipped source of truth for this and for `SpecPatch`,
+`ResultSet`, `Rejection`, `Answer`, the received-payload envelope and the semantic
+layer's schema. Read the module, not a restatement of it; what follows is why it has the
+shape it has.
 
 Four deliberate properties:
 
@@ -141,6 +157,88 @@ if (materiallyDifferent(naive, honest)) showComparison(naive, honest)
 
 Same engine, run twice, diff the output. We never hardcode "watch out for the 5.0
 problem" — the comparison emerges from any question where a guard changes the answer.
+
+### `contracts/` is a module of its own
+
+The spec is read by the warehouse, the engine, the AI layer, the route *and* the client.
+Defining it beside the `Warehouse` interface would make the engine import from the
+warehouse — inverting the dependency, since the warehouse *consumes* the spec and does
+not own it. `warehouse/types.ts` keeps the `Warehouse` interface itself, which
+legitimately depends on both.
+
+So `contracts/` is a leaf: it imports `zod` and its own siblings, and nothing else — not
+`node:*`, not `next/*`, and nothing under `warehouse/`, `engine/` or `ai/`. That is what
+lets the client import it without dragging the server in.
+
+### Strictness is what makes "no joins" structural
+
+Every schema is `z.strictObject()` — Zod 4's API; `.strict()` is the v3 form and is
+banned from this module, because it still works through the compatibility surface and so
+would not fail loudly. Without strictness, "joins are not expressible" is true of the
+*type* but not of the *validator*: a model emitting `{"joins": [...]}` would parse, the
+field would be ignored, and the design's strongest claim would rest on nothing reading it
+rather than on nothing accepting it.
+
+`strictObject` sets the catchall to `never()`, and an undeclared key raises an
+`unrecognized_keys` issue. That issue carries `continue: true`, so parsing does not abort
+— but the issue is still collected, so `safeParse` returns `success: false`. Worth
+stating precisely, because "continue" reads like leniency in the source and is not. The
+contracts suite asserts on the issue code rather than on a throw, for that reason.
+
+`ModelQuerySpecSchema` — what the model may emit — is *derived* from `QuerySpecSchema`
+through `.omit().extend()` rather than written twice. Whether that derivation preserves
+the `never()` catchall is an implementation detail of Zod that a minor release could
+change, so it is a test, not an assumption.
+
+### `tieBreak` is required, not optional
+
+An optional tie-break is no tie-break: an adapter may legitimately omit it, and the
+296-way tie at 5.00 then resolves differently again. Four reasonable implementations were
+measured producing three different answers, so this field is the difference between
+invariant 10 being provable and not. The model never chooses it — `ModelQuerySpec` omits
+it, and `resolveSpec()` fills it from the layer's declared default before validation.
+
+### `asOf` is nullable on the spec and never null in provenance
+
+`null` means "latest", which only the engine can resolve; `Provenance.resolvedAsOf`
+records what "latest" meant. Spec-only fails, because a conformance case pinned at
+"latest" expires the moment the next payload lands. Provenance-only fails, because you
+can then *explain* a past answer but not *re-run* it — and re-running is exactly what the
+conformance suite does. The pairing is the design: the spec asks, the provenance records
+what it got.
+
+### Two limits, not one
+
+`MAX_LIMIT = 120` bounds what the client and the chart receive. It is grounded in
+measured dimension cardinality rather than rounded to a pleasant number: genre 19,
+release decade 12, rating year 23, release year 106, title 9,742. The largest declared
+non-title dimension is release year at 106 members, so 120 leaves a year breakdown
+expressible with headroom. The measurement travels with the constant, in a comment on it,
+or 120 reads as a round number and the next person rounds it differently.
+
+`NARRATE_ROW_CAP = 20` bounds what the narrate call receives. Collapsing the two into one
+number means either a year breakdown is inexpressible or the narrate call sees more than
+~20 rows, so they stay separate: they serve different invariants.
+
+### A `SpecPatch`'s absent `reAsOf` is not a null one
+
+A follow-up emits a patch against the previous spec — a closed set of operations, not a
+deep partial, so each one renders as a line in a diff the user reads before it applies.
+`reAsOf` absent means *inherit the parent's `resolvedAsOf`*: "now just EU" interrogates
+the same snapshot. `reAsOf: null` means *re-resolve to latest*, which is deliberate time
+travel the user asked for. The field is `.optional()` rather than defaulted precisely so
+that `"reAsOf" in patch` stays a real discriminator through parsing.
+
+### `Rejection` is a returned value, and `Answer` is a union
+
+Invariant 4's whole mechanism is that anything undeclared becomes a clarifying question.
+A throw gets caught somewhere generic and rendered as an error; a returned object is
+rendered as the clarifying question that *is* the product working. Showcasing refusal
+later is then a rendering change rather than rebuilding the path.
+
+`Answer` is a discriminated union on `ok`, so there is no shape that omits rejection and
+every caller has to handle both paths — enforced at compile time by an exhaustiveness
+check, not by convention.
 
 ## 3. Semantic layer
 
@@ -243,6 +341,14 @@ What the user is shown for each error case is in `docs/design.md` section 8.
 
 ## 9. Testing
 
+- **Contract tests** over `contracts/`. No data and no network: that a spec carrying
+  `joins` is rejected, on the executable schema *and* on the derived model schema; that
+  `limit` is bounded; that `tieBreak` is required on one surface and absent from the
+  other; that a null `resolvedAsOf` is unconstructible; that a `SpecPatch`'s absent
+  `reAsOf` survives parsing as absent; that `Answer` is exhaustive; that a validation
+  error points at the offending path; and that the model schema converts to a JSON
+  Schema for structured outputs. The last one catches at increment one any Zod construct
+  that does not survive that conversion, rather than seven increments later.
 - **Vitest** over the engine. Pure functions, so the determinism claim is provable
   rather than asserted: same spec always yields the same numbers.
 - **Guard tests** pinned to the verified figures in `docs/design.md` section 4 (296,
@@ -267,6 +373,14 @@ Vercel-ready.
 
 Note: Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
 `headers` — all are async-only.
+
+**Versions are pinned exactly, not by range**, so a clean clone resolves what was
+verified: React 19.2.8 (the version the shadcn verification below ran against, and what
+`create-next-app@16.3.5` itself pins), TypeScript 5.9.3, Vitest 5.0.1. The one range is
+`zod@^4`, because the SDK's structured-output helper imports `zod/v4` and the two must
+dedupe onto one copy. TypeScript 7.0.2 was `latest` at scaffold time and both
+`tsc --noEmit` and `next build` pass on it, but Next 16.3.5's own template ships
+`typescript: ^5`, so the framework-tested line is what we run on.
 
 **shadcn/ui is the component library and the styling approach.** Tailwind carries the
 visual language, Radix primitives carry the interactive behaviour, and the shadcn CLI

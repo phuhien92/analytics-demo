@@ -4,7 +4,7 @@ Golden Analytics went from market research to an approved design to a verified s
 sixteen-increment build spec before a line of application code was written. This document is
 the record of that, and it is kept running rather than reconstructed.
 
-It has two parts.
+It has three parts.
 
 **Part one** is the decision trail: what was decided, the evidence that drove it, what was
 rejected, and what deciding it later would have cost. One entry per decision, short enough to
@@ -12,6 +12,9 @@ scan. The whole of it reads in about fifteen minutes; the linked source carries 
 
 **Part two** is the method — how the work was done, stated so it can be adopted. That is the
 part worth stealing.
+
+**Part three** is the build: the same kind of entry, one section per increment, added as each
+one lands rather than reconstructed at the end.
 
 ## How to read the sources
 
@@ -914,6 +917,98 @@ sixteen-increment build spec — and no application code.
 That is the trade. What it buys is that the three replace-class decisions are made before anything
 reads them, the product's central claim is provable rather than asserted, and the two findings that
 would have broken it were found by a spike rather than by a demo.
+
+---
+
+# Part three — how it was built
+
+One section per increment, added as it lands. Same four lines as part one: what was decided, the
+evidence, what was rejected, what deciding later would have cost.
+
+---
+
+## GA-01 — Scaffold and the core contracts
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 1 · decisions now standing in
+`docs/architecture.md` §2
+
+Three decisions, all of them shape rather than volume, and all of them cheap now and expensive later.
+
+### 23. `tieBreak` is required, not optional
+
+**Decided.** `QuerySpec.sort.tieBreak` is a required field. The model never supplies it:
+`ModelQuerySpec` omits it, and `resolveSpec()` fills it from the semantic layer's declared default
+before validation.
+
+**Evidence.** The hero moment is a **296-way tie at 5.00**. With no declared tie-break, each adapter
+is free to break that tie however its iteration order happens to fall — four reasonable
+implementations were measured producing three different answers. Invariant 10 says determinism is
+proved, not asserted, and the conformance suite is what proves it; an optional tie-break makes the
+suite's expected numbers a property of whichever adapter wrote them down first.
+
+**Rejected.** Optional with an engine-side default. It reads as equivalent and is not: a default
+inside the engine is invisible to the spec, so two adapters can satisfy the same spec and disagree,
+and the disagreement only surfaces on a tie — which is precisely the case this product exists to
+show. An optional tie-break is no tie-break.
+
+**Later would have cost.** Every conformance case, every pinned figure and every stored recipe is a
+spec. Making the field required afterwards invalidates all of them at once, and the adapter that was
+silently supplying its own order has to be found by reading it.
+
+### 24. `asOf` is nullable on the spec and never null in provenance
+
+**Decided.** `QuerySpec.asOf` is `string | null`, where `null` means "latest".
+`Provenance.resolvedAsOf` is a non-nullable timestamp recording what "latest" turned out to be. The
+pairing is the design, not redundancy.
+
+**Evidence.** Each half fails alone, in a different direction. Spec-only: a conformance case pinned
+at "latest" expires the moment the next payload lands, so the suite that proves determinism stops
+being re-runnable. Provenance-only: you can *explain* a past answer but not *re-run* it — and
+re-running is exactly what the conformance suite does, including the as-of replay case pinned at
+`2007-08-02` against the full 2018 store. The spec asks; the provenance records what it got.
+
+**Rejected.** A single non-nullable `asOf` filled in at request time. It removes the distinction
+between "whatever is current" and "this instant", which is the distinction a `SpecPatch` needs when
+a follow-up has to interrogate the parent's snapshot rather than time-travel to a new one.
+
+**Later would have cost.** This is storage shape, not a field. Resolving "latest" after the fact
+needs an append-only store that can still answer as of a past point; retrofitting that is a rewrite
+of the store rather than an addition to a type.
+
+### 25. `contracts/` is a module of its own
+
+**Decided.** The core types live in `src/server/contracts/`, a leaf module importing `zod` and its
+own siblings and nothing else — not `node:*`, not `next/*`, and nothing under `warehouse/`,
+`engine/` or `ai/`.
+
+**Evidence.** The design implied the `QuerySpec` sits beside the `Warehouse` interface in
+`warehouse/types.ts`. It cannot: the spec is read by the warehouse, the engine, the AI layer, the
+route *and* the client, so defining it there makes the engine import from the warehouse — inverting
+the dependency, since the warehouse *consumes* the spec and does not own it. `warehouse/types.ts`
+keeps the `Warehouse` interface itself, which legitimately depends on both. Keeping the module a
+leaf is what lets the client import it without dragging the server in, and it is asserted rather
+than intended: the increment greps its own imports.
+
+**Rejected.** Types beside the interface that reads them, which is the obvious placement and the one
+the design implied.
+
+**Later would have cost.** Moving a type that five callers import is a rename across the build; the
+expensive part is that by then the inverted dependency has been built on, so the move is a
+refactor of the engine rather than a file relocation.
+
+### What the increment also measured
+
+Two things worth recording because they were checked rather than assumed. `.omit().extend()` does
+preserve `strictObject`'s `never()` catchall on `ModelQuerySpecSchema`, so the surface the model
+actually emits into rejects `joins` — asserted on the `unrecognized_keys` issue code, not on a
+throw, because that issue carries `continue: true` and a test checking only for an abort would pass
+for the wrong reason. And `zodOutputFormat(ModelQuerySpecSchema)` converts without throwing, which
+clears `z.record` in `GuardRefSchema.params` for structured outputs now rather than at GA-08.
+
+The scaffold's versions were settled the same way, against `create-next-app@16.3.5`'s own output
+rather than against habit: it pins React 19.2.8 and ships `typescript: ^5`. TypeScript 7.0.2 was
+`latest` and both `tsc --noEmit` and `next build` pass on it, but increment one is the wrong place
+to run ahead of the framework's tested line for no gain.
 
 ---
 
