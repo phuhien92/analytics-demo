@@ -357,6 +357,23 @@ The zero state is starter questions, never a blank builder.
 Charts: Observable Plot, form chosen by the shape of the result (ranked categories →
 horizontal bars; time → line; distribution → histogram).
 
+Three decisions about where weight sits on that surface:
+
+- **The persistent column holds saved recipes, not a transcript.** Each entry is a
+  spec that can be re-run and diffed, which is what section 6 already makes the unit
+  of conversational state; a message history would carry the same information in a
+  form the user cannot re-run, and would leave the naive-versus-honest comparison with
+  no inline home. Nor is the column labelled as the AI answering questions: invariant 1
+  says the model never produces a number, and the label would claim it does.
+- **The question box is subordinate to the answer object.** A box that takes a
+  question is the part every tool in `market-research.md` already has, and a blank one
+  is the blank-page-with-a-cursor this section already rejects. The answer — takeaway,
+  chart, recipe sentence — is the hero, and the recipe sentence with its tappable
+  phrases is where interaction lives.
+- **The naive-versus-honest comparison is a first-class visual moment**, not a card
+  below the fold. It is the differentiated part of the product (section 4), so it
+  reads as something happening to the answer rather than as supporting detail.
+
 ## 12. Accessibility and internationalisation
 
 ### Accessibility is core, not a nice-to-have
@@ -404,6 +421,13 @@ distributions are not comparable across locales that interpret it differently.
   offer the nearest question that works.
 - **Empty result** → say so, and offer the nearest question that returns something.
 - **AI unavailable** → fallback parser; the app degrades, it does not break.
+- **No API key** → a one-time inline note on the first degraded answer, not a silent
+  fall-back and not a persistent banner. It says once that free typing and follow-up
+  amendments are unavailable and that the written summary is a template, and it says
+  that the numbers are unaffected — they come from the engine either way (invariant 1),
+  so only narration and free typing degrade. A silent mode would let the user mistake a
+  template for a narration; a standing banner would keep charging for a fact she has
+  already taken in.
 
 ## 14. Testing
 

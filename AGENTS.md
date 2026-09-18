@@ -82,6 +82,10 @@ The central artifact (§6). Every safety property falls out of its shape.
 | Single-shot question answering | Amendment added later restructures API, UI state and prompts at once |
 | Semantic layer as code | Reinstates the developer in the loop |
 | Streaming rows out, aggregating in the app | Does not survive a real warehouse |
+| A chat transcript in the side column | §6 makes the spec, not a message history, the unit of conversational state, and a transcript leaves the naive/honest catch with no inline home; the column holds saved, re-runnable recipes |
+| A question box as the centre of the interface | It is the commoditised part every tool in `market-research.md` already has, and a blank box is the blank builder §11 rejects |
+| A silent no-API-key mode | Lets the user read a template summary as a narration |
+| A persistent no-API-key banner | Keeps charging for a fact already taken in; a one-time inline note on the first degraded answer instead |
 | `output_format` / assistant prefill | Deprecated; prefill returns 400 on Opus 5. Use structured outputs via `output_config.format` |
 
 Out of scope for v1 (§16): auth, multi-dataset upload, a visual chart editor,
