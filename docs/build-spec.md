@@ -183,7 +183,7 @@ survive the renumbering.
 
 **Size** M — one session · **Depends on** nothing
 
-**Landed** 2026-09-18 · branch `fm/ga-01-scaffold-contracts`. Decisions recorded in
+**Landed** 2026-09-18 · [PR #18](https://github.com/phuhien92/analytics-demo/pull/18). Decisions recorded in
 `docs/how-this-was-built.md` part three; the standing technical record is `docs/architecture.md` §2.
 From here this definition of done is a record of what was built, not an instruction to keep code
 matching it.
