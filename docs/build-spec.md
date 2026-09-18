@@ -235,9 +235,10 @@ matching it.
 
 **Size** S — half a session · **Depends on** GA-01 · **Swappable with** GA-02
 
-**Landed** 2026-09-18. Decisions recorded in `docs/how-this-was-built.md` part three; the standing
-technical record is `docs/architecture.md` §3 and §4. From here this definition of done is a record
-of what was built, not an instruction to keep code matching it.
+**Landed** 2026-09-18 · [PR #19](https://github.com/phuhien92/analytics-demo/pull/19). Decisions recorded in
+`docs/how-this-was-built.md` part three; the standing technical record is `docs/architecture.md` §3
+and §4. From here this definition of done is a record of what was built, not an instruction to keep
+code matching it.
 
 > **C4 settled: Disclose in the trust report's coverage line, no fifth guard** — The thirteen undated titles. See §6.
 
