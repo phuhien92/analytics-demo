@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "defaultTieBreak": "title",
+  "materiality": {
+    "minValueDelta": 0.01
+  },
+  "measures": [
+    {
+      "id": "avg_rating",
+      "labels": { "en": "average rating" }
+    },
+    {
+      "id": "rating_count",
+      "labels": { "en": "number of ratings" }
+    },
+    {
+      "id": "viewer_count",
+      "labels": { "en": "number of viewers" }
+    },
+    {
+      "id": "title_count",
+      "labels": { "en": "number of titles" }
+    },
+    {
+      "id": "share_rated_4_plus",
+      "labels": { "en": "share rated 4 or higher" }
+    }
+  ],
+  "dimensions": [
+    {
+      "id": "title",
+      "labels": { "en": "title" }
+    },
+    {
+      "id": "genre",
+      "labels": { "en": "genre" }
+    },
+    {
+      "id": "release_year",
+      "labels": { "en": "release year" }
+    },
+    {
+      "id": "release_decade",
+      "labels": { "en": "release decade" }
+    },
+    {
+      "id": "rating_year",
+      "labels": { "en": "rating year" }
+    }
+  ],
+  "guards": [
+    {
+      "id": "min_evidence",
+      "labels": { "en": "minimum ratings per title" },
+      "explanation": {
+        "en": "Checked how many ratings each title has, and left out the ones below the threshold."
+      },
+      "defaultParams": { "minObservations": 20 }
+    },
+    {
+      "id": "exclude_unrated",
+      "labels": { "en": "titles never rated" },
+      "explanation": {
+        "en": "Checked which titles have no ratings at all, and left them out — there is nothing to average."
+      },
+      "defaultParams": {}
+    },
+    {
+      "id": "exclude_uncategorised",
+      "labels": { "en": "titles with no genre" },
+      "explanation": {
+        "en": "Checked which titles are filed under no genre, and left them out of genre breakdowns."
+      },
+      "defaultParams": {}
+    },
+    {
+      "id": "disclose_multi_membership",
+      "labels": { "en": "titles counted in more than one genre" },
+      "explanation": {
+        "en": "Checked how many titles belong to several genres. A genre breakdown counts those titles once per genre, so the overlap is reported rather than removed."
+      },
+      "defaultParams": {}
+    }
+  ]
+}

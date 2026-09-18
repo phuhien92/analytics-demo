@@ -1012,6 +1012,95 @@ to run ahead of the framework's tested line for no gain.
 
 ---
 
+## GA-03 — Semantic layer, guard registry, loader
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 3 · decisions now standing in
+`docs/architecture.md` §3 and §4
+
+The increment sits on one decision taken earlier — the layer ships at its thinnest viable, and
+every later piece of structure is earned by a failing eval rather than added because it sounds
+useful. What was left to decide was where the line falls, and what stops a data file from lying.
+
+### 26. The registry declares each guard's parameter names, and the loader checks them
+
+**Decided.** `guards/registry.ts` holds four entries, each declaring the parameter names its guard
+reads — `min_evidence` reads `minObservations`; the other three read nothing. The loader rejects any
+layer whose `defaultParams` carry a key no guard reads, naming the key.
+
+**Evidence.** Thresholds arrive in the spec's `params`, defaulted by the layer, so the number 20
+lives in a data file and the code that consumes it lives elsewhere. That split has a gap in the
+middle: nothing connects the key the layer writes to the key the engine reads. A layer declaring
+`{ "minRatingsPerTitle": 20 }` against a guard that reads `minObservations` parses cleanly, ships,
+and runs the guard **unthresholded** — a silent coercion arriving through the layer rather than
+through the model, which is the one failure mode this product exists to remove. The registry is the
+only place that knows which keys are real, so it is the only place that can say so.
+
+**Rejected.** A registry that is a bare list of ids, with implementations and their parameters both
+arriving in GA-04. It is thinner, and it is thin in the wrong direction: the loader is GA-03's
+deliverable and a loader that cannot check parameters is a loader that passes a broken layer.
+Inferring the parameter names from the implementations in GA-04 was also rejected — it makes the
+check exist only once there is something to infer from, which is three increments after the layer is
+editable.
+
+**Later would have cost.** The symptom is not an error. It is a guard that silently does nothing,
+found by noticing that a number looks wrong — which is the audit this product's user cannot perform.
+
+### 27. Materiality is one global threshold in the layer, not one per measure
+
+**Decided.** `materiality.minValueDelta` is `0.01`, declared in the layer. It settles the first open
+implementer choice in `docs/build-spec.md` §7.
+
+**Evidence.** Two things make a naive/honest comparison material and only one needs a number: a
+change in the top-`limit` row-set's membership is structural, and a measure delta needs one
+presentation step. A per-measure step was the obvious shape and is not expressible —
+`MeasureDeclarationSchema` is a `strictObject` of `id`, `labels` and `synonyms`, and presentation
+scale lives in the store and the engine (`ResultRow.value` against `rawValue`), not in the
+declaration. 0.01 then behaves as a floor across all five measures: exactly one step for
+`avg_rating` and `share_rated_4_plus`, and comfortably cleared by any real change in a count.
+
+**Rejected.** Adding a `decimals` field to `MeasureDeclarationSchema`. That is GA-01's contract, and
+widening a landed contract to express a threshold that one global number already expresses correctly
+is the anticipation this increment is supposed to refuse.
+
+**Later would have cost.** Little, and that is the point — it is declared data, so GA-12 tunes it
+against the rendered block as an edit to a JSON file rather than to GA-04's engine.
+
+### 28. Pretty-printing the layer is a measured requirement, not a formatting preference
+
+**Decided.** The shipped layer is pretty-printed, asserted by a test that carries the measurement.
+
+**Evidence.** Measured on the shipped file: **2,157 bytes pretty-printed against 1,568 minified —
+589 bytes of whitespace**, not the ~370 the build spec estimated before the file existed. The layer
+heads the cached prompt prefix and Opus 5 does not cache a prefix below 512 tokens. At roughly four
+characters per token that is ~540 tokens against ~390, so on this file the whitespace is what carries
+the prefix over the floor at all. Dropping under it fails silently — no error, no warning, just every
+question paying uncached prefix cost.
+
+**Rejected.** Treating this as house style enforced by a formatter. A formatter is the first thing
+suspended when a file looks noisy in review, and the reviewer suspending it has no way to see what it
+was holding up.
+
+**Later would have cost.** Nothing breaks, which is the expensive part: the regression is a cost and
+latency increase with no failing test and no error to trace it to.
+
+### What the increment also measured
+
+The build spec's ~370-byte estimate for minification was low by 219 bytes; the shipped explanations
+made the file larger than the plan assumed. The figure now in `docs/architecture.md` §3 is the
+measured one, and the test carries it, so the next person to look at it does not re-measure.
+
+`docs/architecture.md` §3 had listed a **filter vocabulary** — minimum ratings per title, release
+period, rating period, genre, viewer segment — as part of the layer. GA-01's `SemanticLayerSchema`
+has no `filters` key at all, so the doc had been stale since increment one and a layer declaring one
+fails to load. §3 now says so rather than leaving the reader to discover it from a parse error.
+
+Every guarantee in `tests/semantic.test.ts` was checked by breaking it: a fifth registry entry, a
+hardcoded threshold, a minified layer, an added synonym, a second locale, and each of the loader's
+three cross-file checks removed in turn. All thirteen cases fail when the thing they protect is
+removed, so none of them passes vacuously.
+
+---
+
 ## Keeping this current
 
 This document is the project's running record, not a retrospective.
