@@ -136,9 +136,13 @@ are fixed below:
    model *production* as the real bottleneck. A layer only a developer can edit
    reinstates the human this product claims to remove.
 
-Deferred as genuinely additive: row-level security, correction harvesting into a
-growing eval set, caching and pushdown past ~1M rows, conditional execution of the
-naive/honest comparison, per-tenant cache namespacing, observability.
+Accessibility and locale-aware labelling are treated the same way and ship in v1 — see
+section 12 for why neither is deferrable under this test.
+
+Deferred as genuinely additive: UI translation and RTL layout; generic service
+resilience (retry, backoff, circuit breaking); row-level security; correction
+harvesting into a growing eval set; caching and pushdown past ~1M rows; conditional
+execution of the naive/honest comparison; per-tenant cache namespacing; observability.
 
 The CSVs stand in for real server-side data. The engine runs on the server behind a
 swappable data-access interface, so replacing the local store with Postgres or
@@ -245,7 +249,25 @@ problem" — the comparison emerges from any question where a guard changes the 
 
 Declared as **versioned JSON** (`semantic/movielens.json`), loaded and validated at
 boot. Generating, editing or reviewing it is a normal operation, not a code change.
-Each entry carries a plain-English name and synonyms.
+
+Every entry's display name and synonyms are **keyed by locale**. This is structural,
+not a feature: the recipe sentence is *composed* from these labels, and synonyms are how
+a question is matched to a measure — so natural-language understanding is itself
+locale-dependent. A flat label shape would make internationalisation a schema rewrite
+plus a prompt rewrite plus a matching rewrite. The nesting level costs nothing now.
+
+```json
+{
+  "measures": [{
+    "id": "avg_rating",
+    "labels":   { "en": "average rating", "vi": "điểm đánh giá trung bình" },
+    "synonyms": { "en": ["avg rating", "rating", "how well rated"],
+                  "vi": ["điểm trung bình"] }
+  }]
+}
+```
+
+v1 ships `en` only. Adding a locale becomes a data change.
 
 - **Measures** — average rating, number of ratings, number of viewers, number of
   titles, share rated 4+
@@ -335,7 +357,47 @@ The zero state is starter questions, never a blank builder.
 Charts: Observable Plot, form chosen by the shape of the result (ranked categories →
 horizontal bars; time → line; distribution → histogram).
 
-## 12. Error handling
+## 12. Accessibility and internationalisation
+
+### Accessibility is core, not a nice-to-have
+
+Three reasons it ships in v1:
+
+1. **Cost asymmetry.** Semantic HTML, keyboard navigation on the recipe chips, focus
+   management and contrast cost almost nothing when built in, and require touching
+   every component when retrofitted.
+2. **Market access.** The European Accessibility Act has applied since June 2025 and
+   covers a broad range of digital services sold into the EU; enterprise procurement
+   asks for WCAG 2.1 AA and a VPAT independently of that. Verify exact scope against
+   the go-to-market, but the direction is not in doubt.
+3. **It is the same feature as the trust thesis.** Our primary output is a chart — the
+   worst artifact for a screen-reader user. But the plain-English takeaway and the
+   recipe sentence *are* the accessible representation of that chart. A screen-reader
+   user hears "Film-Noir leads at 4.1, 0.4 above the catalogue average, based on
+   18,204 of 100,836 ratings", which carries more than bars alone convey to a sighted
+   user. Deferring accessibility would mean discarding something the design already
+   produces.
+
+Requirements: WCAG 2.1 AA contrast · full keyboard operation of chips and the
+provenance drawer · visible focus states · a semantic `<table>` behind every chart,
+reachable not merely present · ARIA on interactive chips and the drawer ·
+`prefers-reduced-motion` respected · no information carried by colour alone.
+
+### Internationalisation: ready, not translated
+
+Split deliberately:
+
+- **Structural (v1)** — locale-keyed labels and synonyms in the semantic layer
+  (section 7); `Intl.NumberFormat` and `Intl.DateTimeFormat` for all numeric and date
+  output, since a decimal comma versus a decimal point changes whether 4,47 reads as a
+  rating or a count; the narrate call takes locale as a parameter.
+- **Deferred** — actually translating UI chrome, RTL layout, and any locale beyond
+  `en`. Cheap whenever it happens, because nothing structural blocks it.
+
+Noted for later: the 5-star scale is itself a cultural convention, and rating
+distributions are not comparable across locales that interpret it differently.
+
+## 13. Error handling
 
 - **Ambiguous question** → clarifying question with concrete options. Never a guess.
 - **Out-of-scope request** → say plainly what this data can and cannot answer, and
@@ -343,7 +405,7 @@ horizontal bars; time → line; distribution → histogram).
 - **Empty result** → say so, and offer the nearest question that returns something.
 - **AI unavailable** → fallback parser; the app degrades, it does not break.
 
-## 13. Testing
+## 14. Testing
 
 - **Vitest** over the engine. Pure functions, so the determinism claim is provable
   rather than asserted: same spec always yields the same numbers.
@@ -357,8 +419,11 @@ horizontal bars; time → line; distribution → histogram).
   model choice, drove accuracy.
 - **Rejection tests** — questions the semantic layer cannot answer must produce a
   clarifying question, never a coerced near-match.
+- **Accessibility checks** — automated axe pass on the main flow, plus a manual
+  keyboard-only run through ask → amend → open provenance drawer. The data table
+  behind each chart is asserted present and reachable.
 
-## 14. Stack
+## 15. Stack
 
 Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 ·
 Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.
@@ -369,13 +434,13 @@ Note: Next 16 removed synchronous access to `params`, `searchParams`, `cookies` 
 **Rejected: DuckDB-WASM.** 142 MB unpacked for a 100,836-row dataset, and shipping a
 SQL engine to display SQL a non-technical user cannot read contradicts the thesis.
 
-## 15. Out of scope
+## 16. Out of scope
 
 Auth. Multi-dataset upload. A visual chart editor. Writing back to any source.
 Recommender modelling. Dashboards or saved reports. Anything requiring a real
 warehouse connection — the interface exists so it can be added, but no adapter ships.
 
-## 16. README requirements
+## 17. README requirements
 
 Per the brief, the README must cover: the dataset in use, why this was built, how AI
 was used to build it, and what would come next with more time.
