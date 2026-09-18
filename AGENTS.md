@@ -54,6 +54,10 @@ raise it rather than working around it.
     whether 4,47 reads as a rating or a count.
 13. **The app runs on a clean clone with no API key** via the deterministic
     fallback parser. It degrades; it does not break.
+14. **Each shadcn component is earned** (§15). One is added when a screen actually
+    needs it — the same thinnest-viable rule the semantic layer follows. Never
+    install the catalogue, and never let the shipped defaults stand in for the
+    approved look; the theme is the approved look.
 
 ## The QuerySpec
 
@@ -79,6 +83,9 @@ The central artifact (§6). Every safety property falls out of its shape.
 | "Canva for data" positioning | Taken by Bricks; a north star, not a wedge |
 | "An answer you can defend" | Sells the absence of a bad thing to a user who has never been burned; answers step 2 while she is at step 1 |
 | `guards: { minRatingsPerTitle }` in the core type | A MovieLens assumption inside the portable contract |
+| React Aria in place of Radix | Stronger locale and screen-reader coverage, but a steeper API for the same six components |
+| A full styled kit (MUI, Chakra) | Imposes its own visual language against the approved mock |
+| Hand-rolling every primitive | Smallest dependency surface, but dialog and popover focus management is exactly where hand-rolled accessibility fails |
 | Single-shot question answering | Amendment added later restructures API, UI state and prompts at once |
 | Semantic layer as code | Reinstates the developer in the loop |
 | Streaming rows out, aggregating in the app | Does not survive a real warehouse |

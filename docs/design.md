@@ -450,10 +450,43 @@ distributions are not comparable across locales that interpret it differently.
 ## 15. Stack
 
 Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 ·
-Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.
+Observable Plot 0.6.17 · shadcn/ui on Tailwind v4 and Radix · Zod · Vitest ·
+Vercel-ready.
 
 Note: Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
 `headers` — all are async-only.
+
+**shadcn/ui is the component library and the styling approach.** Tailwind carries the
+visual language, Radix primitives carry the interactive behaviour, and the shadcn CLI
+copies each component into the repository as source rather than adding a runtime
+dependency. The components then live where they can be read and audited — the same
+instinct as a semantic layer that is data rather than code, and a recipe that is a
+sentence rather than a formula. The accessibility §12 commits v1 to comes from Radix:
+focus management in the provenance drawer and WAI-ARIA keyboard behaviour in the
+tappable-phrase popovers are exactly where hand-written implementations fail. Theming
+is CSS variables, so the approved look becomes the theme rather than something fought
+against, and the tooling has right-to-left support, which is a head start on the
+internationalisation §12 defers but does not block.
+
+Two conditions hold with it. **Each component is earned**: one is added when a screen
+actually needs it, mirroring the thinnest-viable rule the semantic layer already
+follows — the ask surface needs roughly six, not a catalogue. **The approved look wins,
+not the defaults**: shadcn ships a neutral house style, and the mock's soft surfaces,
+generous whitespace and one confident accent are applied deliberately as the theme.
+That same theme populates the golden-analytics design-system project.
+
+Verified on Next 16.3.5, not assumed. A throwaway App Router scaffold at Next 16.3.5
+with React 19.2.8 and Tailwind 4.3.3 took `shadcn` CLI 4.21.0 init against the Radix
+base, then badge, card, popover, dropdown menu, dialog, drawer, table, textarea and
+button — pulling `radix-ui` 1.6.7, `vaul` 1.1.2 and `lucide-react` 1.47.0. The
+production build, TypeScript and `eslint-config-next` all pass, and in a headless
+browser the popover reports `aria-expanded`, the menu opens from the keyboard onto a
+`menuitem`, the dialog traps focus and returns it to its trigger on Escape, the drawer
+opens as a `dialog` and closes on Escape, and the table renders as a real `<table>`,
+with no console or page errors. Two notes: the CLI requires an explicit preset
+(`init -b radix -p nova`) because `--yes` alone still prompts, and `--base-color` is
+gone in 4.x; and the drawer does not move focus into its content on open, so the
+provenance drawer must give itself a focusable first element.
 
 **Rejected: DuckDB-WASM.** 142 MB unpacked for a 100,836-row dataset, and shipping a
 SQL engine to display SQL a non-technical user cannot read contradicts the thesis.
