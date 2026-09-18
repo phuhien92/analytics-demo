@@ -3,6 +3,13 @@
 Date: 2026-09-18
 Status: Approved for planning
 
+This document carries the product argument: the problem, the wedge, the thesis, the
+dataset and its verified traps, the interface, and what is out of scope. The technical
+decisions — the architecture and file layout, the QuerySpec, the semantic layer format,
+the warehouse interface, the AI call structure, the testing bar and the stack — live in
+`docs/architecture.md` and do not belong here. The test: if it changes what the user
+gets or why, it is design; if it changes what is built, it is architecture.
+
 ## 1. The problem
 
 Business users cannot get value from their own data. The marketing analyst files a
@@ -114,179 +121,12 @@ Honest answer, requiring 20+ ratings — *A Streetcar Named Desire* 4.47 (n=20),
 Because 86.7% of the catalogue has thin evidence, the naive list is essentially noise.
 This is real, not contrived, and it is the product in one screen.
 
-## 5. Architecture
+## 5. Trust guards
 
-### Scope bar
-
-Feature scope is a demo: one dataset, no auth, no multi-tenancy, no pipeline.
-
-**Architecture scope is production-shaped.** The distinction that matters is between
-what production would *extend* (additive — fine to omit) and what it would *replace*
-(a rewrite — not fine to omit). Three of the latter were caught in design review and
-are fixed below:
-
-1. **Guards are a declared registry**, not a hardcoded field. An earlier draft put
-   `guards: { minRatingsPerTitle: number }` in the core type — a MovieLens-specific
-   assumption sitting inside the portable contract. Pointed at sales data it is
-   meaningless, and every adapter, validator and prompt would have to change.
-2. **Conversation is spec amendment**, not single-shot. Real analysis is iterative
-   ("now just EU", "by month instead"). Adding this later restructures the API
-   contract, the UI state model and the prompt strategy simultaneously.
-3. **The semantic layer is versioned data, not code.** The research named semantic
-   model *production* as the real bottleneck. A layer only a developer can edit
-   reinstates the human this product claims to remove.
-
-Accessibility and locale-aware labelling are treated the same way and ship in v1 — see
-section 12 for why neither is deferrable under this test.
-
-Deferred as genuinely additive: UI translation and RTL layout; generic service
-resilience (retry, backoff, circuit breaking); row-level security; correction
-harvesting into a growing eval set; caching and pushdown past ~1M rows; conditional
-execution of the naive/honest comparison; per-tenant cache namespacing; observability.
-
-The CSVs stand in for real server-side data. The engine runs on the server behind a
-swappable data-access interface, so replacing the local store with Postgres or
-Snowflake is one implementation, not a rewrite.
-
-```
-question ──▶ [AI: interpret] ──▶ QuerySpec ──▶ [Zod validate against
-                Claude,            (JSON)        semantic layer — reject
-                effort: low,                     anything not declared]
-                cached prefix]                            │
-                                                          ▼
-                                          [Engine: deterministic TypeScript]
-                                          pure functions, no AI, unit-tested
-                                                          │
-                                                          ▼
-                                          ResultSet + TrustReport
-                                          (rows, excluded, coverage, naive
-                                           comparison when it differs)
-                                                          │
-                                                          ▼
-                                          [AI: narrate] ──▶ takeaway
-                                          sees ~20 aggregated rows, never
-                                          raw data, cannot invent a figure
-```
-
-A follow-up ("now just EU") takes the same path but the model emits a **SpecPatch**
-against the previous spec rather than a fresh spec. The conversational unit of state is
-the spec, not a transcript — cheaper than carrying chat history, and more verifiable,
-because an amendment can be rendered as a diff the user reads before it applies.
-
-### Layout
-
-```
-data/                         provided CSVs (source-of-truth stand-in)
-design-system/                design foundations as static source — tokens + preview cards
-scripts/build-warehouse.ts    ETL: CSV -> compiled store
-semantic/movielens.json       THE SEMANTIC LAYER — versioned data, not code
-src/
-  server/
-    warehouse/                DATA ACCESS LAYER (swappable)
-      types.ts                  interface Warehouse { aggregate(spec) }
-      local-store.ts            typed-array adapter
-    semantic/
-      load.ts                 parse + validate semantic/*.json
-      guards/registry.ts      declared guard implementations
-    engine/
-      execute.ts              QuerySpec -> ResultSet (pure, deterministic)
-      amend.ts                SpecPatch -> QuerySpec
-    ai/
-      interpret.ts            question -> QuerySpec (structured output)
-      amend.ts                follow-up -> SpecPatch
-      narrate.ts              ResultSet -> takeaway (streamed)
-      fallback-parser.ts      deterministic, no-API-key path
-  app/
-    api/ask/route.ts
-    page.tsx
-  components/                 QuestionBox, AnswerCard, RecipeSentence,
-                              Chart, NaiveComparison, ProvenanceDrawer
-tests/
-  engine.test.ts
-  conformance/                spec -> expected numbers; EVERY adapter must pass
-  evals/questions.jsonl       question -> expected-spec pairs
-```
-
-## 6. The QuerySpec
-
-The central artifact. Every safety property falls out of its shape.
-
-```ts
-type QuerySpec = {
-  measure:    MeasureId
-  breakdown?: DimensionId
-  filters:    Filter[]
-  sort:       { by: "measure" | "breakdown"; dir: "asc" | "desc" }
-  limit:      number
-  guards:     Array<{ id: GuardId; params: Record<string, number> }>
-}
-```
-
-Four deliberate properties:
-
-- **Joins are not expressible.** There is no join field; relationships are declared once
-  in the semantic layer. The most-cited text-to-SQL failure mode — wrong joins on
-  multi-table queries — is eliminated by construction, not by prompting. The model
-  cannot express the mistake.
-- **One measure, one breakdown** in v1. Narrow IRs are easy to validate, easy to render,
-  and easy to state as a sentence. Breadth buys question coverage at the cost of every
-  property we care about; anything unexpressible becomes an honest clarifying question.
-- **Guards are declared, not hardcoded.** `GuardId` resolves against the registry the
-  semantic layer declares, exactly like measures. Nothing dataset-specific lives in the
-  type.
-- **Guards live in the spec, not hidden in the engine** — which makes the hero moment
-  generic rather than special-cased:
-
-```ts
-const honest = execute({ ...spec })
-const naive  = execute({ ...spec, guards: [] })
-if (materiallyDifferent(naive, honest)) showComparison(naive, honest)
-```
-
-Same engine, run twice, diff the output. We never hardcode "watch out for the 5.0
-problem" — the comparison emerges from any question where a guard changes the answer.
-
-## 7. Semantic layer
-
-Declared as **versioned JSON** (`semantic/movielens.json`), loaded and validated at
-boot. Generating, editing or reviewing it is a normal operation, not a code change.
-
-Every entry's display name and synonyms are **keyed by locale**. This is structural,
-not a feature: the recipe sentence is *composed* from these labels, and synonyms are how
-a question is matched to a measure — so natural-language understanding is itself
-locale-dependent. A flat label shape would make internationalisation a schema rewrite
-plus a prompt rewrite plus a matching rewrite. The nesting level costs nothing now.
-
-```json
-{
-  "measures": [{
-    "id": "avg_rating",
-    "labels":   { "en": "average rating", "vi": "điểm đánh giá trung bình" },
-    "synonyms": { "en": ["avg rating", "rating", "how well rated"],
-                  "vi": ["điểm trung bình"] }
-  }]
-}
-```
-
-v1 ships `en` only. Adding a locale becomes a data change.
-
-- **Measures** — average rating, number of ratings, number of viewers, number of
-  titles, share rated 4+
-- **Dimensions** — genre, release decade, release year, rating year, title
-- **Filters** — minimum ratings per title, release period, rating period, genre,
-  viewer segment
-- **Guards** — see below; declared here, implemented in the registry
-
-The model may select only from this set. Anything outside it is **rejected and turned
-into a clarifying question — never coerced to the nearest match.** Silent coercion is
-how you get a plausible answer to a question nobody asked. That rejection path is what
-makes "the AI never computes the number" structurally true rather than a promise.
-
-## 8. Trust guards
-
-Declared in the semantic layer, implemented in `guards/registry.ts`. Each has a safe
-default already applied, a plain-English explanation, and a one-tap escape. Never a
-warning that hands the user homework.
+Each guard has a safe default already applied, a plain-English explanation, and a
+one-tap escape. Never a warning that hands the user homework. How guards are declared
+in the semantic layer and resolved through the registry is in `docs/architecture.md`
+section 4.
 
 | Guard | Default | Rationale (verified) |
 | --- | --- | --- |
@@ -298,48 +138,7 @@ warning that hands the user homework.
 **Naive comparison** is not a guard but an engine behaviour: run the spec with guards
 applied and with `guards: []`, and surface the difference when it is material.
 
-## 9. Warehouse interface
-
-The boundary sits at **aggregation, not rows**:
-
-```ts
-interface Warehouse {
-  aggregate(spec: QuerySpec): Promise<ResultSet>
-}
-```
-
-The QuerySpec is the portable IR. The local adapter loops over typed arrays; a future
-Postgres or Snowflake adapter compiles the same spec to SQL and pushes the work down.
-The alternative — streaming rows out and aggregating in the app — is simpler but does
-not survive production, since a real warehouse adapter would have to pull every row
-over the wire.
-
-The cost is that determinism now depends on each adapter behaving identically. That is
-answered by the **conformance suite**: one set of spec → expected-numbers cases that
-every adapter must pass. It converts the weakness into the artifact that proves the
-central claim.
-
-## 10. AI usage
-
-`@anthropic-ai/sdk` on `claude-opus-5`.
-
-**Call 1 — interpret.** Structured outputs via `output_config.format`. Note the
-`output_format` parameter is deprecated and assistant prefill returns 400 on Opus 5, so
-structured outputs is the only correct route. `output_config.effort: "low"` —
-interpretation is extraction-shaped, not reasoning-heavy. Zod-validated against the
-semantic layer before execution.
-
-**Call 2 — narrate.** Streamed. Receives the computed aggregate (~20 rows) plus the
-trust report. Never the raw data.
-
-**Prompt caching** on the stable prefix (semantic layer + few-shot examples), user
-question last. Roughly 2k in / 200 out per question (~$0.015 uncached); caching cuts
-that substantially and improves latency.
-
-**No API key** — the deterministic fallback parser covers the starter questions, so the
-app runs on a clean clone.
-
-## 11. Interface
+## 6. Interface
 
 Default view, in order: plain-English takeaway, chart, one-line recipe sentence with
 tappable phrases, and "How did you get this? →" opening the provenance drawer.
@@ -361,11 +160,12 @@ horizontal bars; time → line; distribution → histogram).
 Three decisions about where weight sits on that surface:
 
 - **The persistent column holds saved recipes, not a transcript.** Each entry is a
-  spec that can be re-run and diffed, which is what section 6 already makes the unit
-  of conversational state; a message history would carry the same information in a
-  form the user cannot re-run, and would leave the naive-versus-honest comparison with
-  no inline home. Nor is the column labelled as the AI answering questions: invariant 1
-  says the model never produces a number, and the label would claim it does.
+  spec that can be re-run and diffed, which is what `docs/architecture.md` section 2
+  already makes the unit of conversational state; a message history would carry the
+  same information in a form the user cannot re-run, and would leave the
+  naive-versus-honest comparison with no inline home. Nor is the column labelled as
+  the AI answering questions: invariant 1 says the model never produces a number, and
+  the label would claim it does.
 - **The question box is subordinate to the answer object.** A box that takes a
   question is the part every tool in `market-research.md` already has, and a blank one
   is the blank-page-with-a-cursor this section already rejects. The answer — takeaway,
@@ -375,7 +175,7 @@ Three decisions about where weight sits on that surface:
   below the fold. It is the differentiated part of the product (section 4), so it
   reads as something happening to the answer rather than as supporting detail.
 
-## 12. Accessibility and internationalisation
+## 7. Accessibility and internationalisation
 
 ### Accessibility is core, not a nice-to-have
 
@@ -405,23 +205,20 @@ reachable not merely present · ARIA on interactive chips and the drawer ·
 
 Split deliberately:
 
-- **Structural (v1)** — locale-keyed labels and synonyms in the semantic layer
-  (section 7); `Intl.NumberFormat` and `Intl.DateTimeFormat` for all numeric and date
-  output, since a decimal comma versus a decimal point changes whether 4,47 reads as a
-  rating or a count; the narrate call takes locale as a parameter.
+- **Structural (v1)** — the locale-keyed label mechanics and the `Intl` formatting
+  rules are in `docs/architecture.md` section 7.
 - **Deferred** — actually translating UI chrome, RTL layout, and any locale beyond
   `en`. Cheap whenever it happens, because nothing structural blocks it.
 
 Noted for later: the 5-star scale is itself a cultural convention, and rating
 distributions are not comparable across locales that interpret it differently.
 
-## 13. Error handling
+## 8. Error handling
 
 - **Ambiguous question** → clarifying question with concrete options. Never a guess.
 - **Out-of-scope request** → say plainly what this data can and cannot answer, and
   offer the nearest question that works.
 - **Empty result** → say so, and offer the nearest question that returns something.
-- **AI unavailable** → fallback parser; the app degrades, it does not break.
 - **No API key** → a one-time inline note on the first degraded answer, not a silent
   fall-back and not a persistent banner. It says once that free typing and follow-up
   amendments are unavailable and that the written summary is a template, and it says
@@ -430,75 +227,16 @@ distributions are not comparable across locales that interpret it differently.
   template for a narration; a standing banner would keep charging for a fact she has
   already taken in.
 
-## 14. Testing
+How the fallback path for an unavailable AI is wired is in `docs/architecture.md`
+section 8.
 
-- **Vitest** over the engine. Pure functions, so the determinism claim is provable
-  rather than asserted: same spec always yields the same numbers.
-- **Guard tests** pinned to the verified figures in section 4 (296, 8,427, 34, 18,
-  2.27). These double as regression tests on the ETL.
-- **Conformance suite** — spec → expected-numbers cases that every `Warehouse` adapter
-  must pass. This is what makes the determinism claim survive a second adapter, and it
-  is the artifact that proves the product's central promise.
-- **Eval set** of question → expected-spec pairs, including amendment cases
-  (spec + follow-up → expected patch). Anthropic's reported lesson was that evals, not
-  model choice, drove accuracy.
-- **Rejection tests** — questions the semantic layer cannot answer must produce a
-  clarifying question, never a coerced near-match.
-- **Accessibility checks** — automated axe pass on the main flow, plus a manual
-  keyboard-only run through ask → amend → open provenance drawer. The data table
-  behind each chart is asserted present and reachable.
-
-## 15. Stack
-
-Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 ·
-Observable Plot 0.6.17 · shadcn/ui on Tailwind v4 and Radix · Zod · Vitest ·
-Vercel-ready.
-
-Note: Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
-`headers` — all are async-only.
-
-**shadcn/ui is the component library and the styling approach.** Tailwind carries the
-visual language, Radix primitives carry the interactive behaviour, and the shadcn CLI
-copies each component into the repository as source rather than adding a runtime
-dependency. The components then live where they can be read and audited — the same
-instinct as a semantic layer that is data rather than code, and a recipe that is a
-sentence rather than a formula. The accessibility §12 commits v1 to comes from Radix:
-focus management in the provenance drawer and WAI-ARIA keyboard behaviour in the
-tappable-phrase popovers are exactly where hand-written implementations fail. Theming
-is CSS variables, so the approved look becomes the theme rather than something fought
-against, and the tooling has right-to-left support, which is a head start on the
-internationalisation §12 defers but does not block.
-
-Two conditions hold with it. **Each component is earned**: one is added when a screen
-actually needs it, mirroring the thinnest-viable rule the semantic layer already
-follows — the ask surface needs roughly six, not a catalogue. **The approved look wins,
-not the defaults**: shadcn ships a neutral house style, and the mock's soft surfaces,
-generous whitespace and one confident accent are applied deliberately as the theme.
-That same theme populates the golden-analytics design-system project.
-
-Verified on Next 16.3.5, not assumed. A throwaway App Router scaffold at Next 16.3.5
-with React 19.2.8 and Tailwind 4.3.3 took `shadcn` CLI 4.21.0 init against the Radix
-base, then badge, card, popover, dropdown menu, dialog, drawer, table, textarea and
-button — pulling `radix-ui` 1.6.7, `vaul` 1.1.2 and `lucide-react` 1.47.0. The
-production build, TypeScript and `eslint-config-next` all pass, and in a headless
-browser the popover reports `aria-expanded`, the menu opens from the keyboard onto a
-`menuitem`, the dialog traps focus and returns it to its trigger on Escape, the drawer
-opens as a `dialog` and closes on Escape, and the table renders as a real `<table>`,
-with no console or page errors. Two notes: the CLI requires an explicit preset
-(`init -b radix -p nova`) because `--yes` alone still prompts, and `--base-color` is
-gone in 4.x; and the drawer does not move focus into its content on open, so the
-provenance drawer must give itself a focusable first element.
-
-**Rejected: DuckDB-WASM.** 142 MB unpacked for a 100,836-row dataset, and shipping a
-SQL engine to display SQL a non-technical user cannot read contradicts the thesis.
-
-## 16. Out of scope
+## 9. Out of scope
 
 Auth. Multi-dataset upload. A visual chart editor. Writing back to any source.
 Recommender modelling. Dashboards or saved reports. Anything requiring a real
 warehouse connection — the interface exists so it can be added, but no adapter ships.
 
-## 17. README requirements
+## 10. README requirements
 
 Per the brief, the README must cover: the dataset in use, why this was built, how AI
 was used to build it, and what would come next with more time.

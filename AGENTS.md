@@ -5,7 +5,11 @@ accuracy; it is catching the confident wrong answer that the user cannot audit.
 
 Authoritative sources, in this order:
 
-- `docs/design.md` — the approved design. Section numbers referenced below are its.
+- `docs/design.md` — the approved product argument: the problem, the wedge, the
+  thesis, the dataset, the interface, what is out of scope.
+- `docs/architecture.md` — the approved technical decisions: architecture and file
+  layout, the QuerySpec, the semantic layer, the warehouse interface, AI usage,
+  testing, the stack.
 - `docs/market-research.md` — the evidence the design rests on.
 - This file — the invariants an agent must not break, and the decisions already
   settled so they are not relitigated or silently reversed.
@@ -13,8 +17,11 @@ Authoritative sources, in this order:
   reached, and the method that produced it. Not authoritative over the design;
   it is how the design got here.
 
-If code and `docs/design.md` disagree, the doc wins until the doc is changed.
-A design change lands in `docs/design.md` first, with its rationale, then in code.
+If code and the docs disagree, the doc wins until the doc is changed. A change lands
+in the doc first, with its rationale, then in code — and in the right doc: technical
+decisions belong in `docs/architecture.md`, product decisions in `docs/design.md`. The
+test is whether it changes what is built, or what the user gets and why. Section
+citations below name their document: `design §4`, `architecture §2`.
 
 ## Prime invariants
 
@@ -34,7 +41,7 @@ raise it rather than working around it.
    a clarifying question, never a nearest match. Silent coercion is the failure
    mode this product exists to remove.
 5. **Trust is shown, not claimed.** Copy says what was checked. Never the word
-   "verified" — the verification is real but partial (§3), and overclaiming it
+   "verified" — the verification is real but partial (design §3), and overclaiming it
    reproduces the silent failure we criticise.
 6. **Guards are declared data, not hardcoded logic.** `GuardId` resolves against
    the registry the semantic layer declares. Nothing dataset-specific belongs in
@@ -42,29 +49,30 @@ raise it rather than working around it.
 7. **The semantic layer is versioned JSON, not code.** Editing or reviewing it is
    a normal operation. A layer only a developer can edit reinstates the human the
    product removes.
-8. **Labels and synonyms are locale-keyed** (§7). Synonyms are how questions match
-   measures, so understanding is locale-dependent. v1 ships `en` only; adding a
-   locale stays a data change.
+8. **Labels and synonyms are locale-keyed** (architecture §3). Synonyms are how
+   questions match measures, so understanding is locale-dependent. v1 ships `en`
+   only; adding a locale stays a data change.
 9. **The warehouse boundary is aggregation, not rows**: `aggregate(spec)`. A real
    adapter pushes the work down; it never streams rows to the app.
 10. **Determinism is proved, not asserted.** The conformance suite (spec →
     expected numbers) is the artifact behind the central claim, and every
     `Warehouse` adapter must pass it.
-11. **Accessibility ships in v1** (§12). WCAG 2.1 AA, full keyboard operation, a
-    reachable semantic `<table>` behind every chart, no meaning carried by colour
-    alone. The takeaway and recipe sentence *are* the accessible chart.
+11. **Accessibility ships in v1** (design §7). WCAG 2.1 AA, full keyboard
+    operation, a reachable semantic `<table>` behind every chart, no meaning
+    carried by colour alone. The takeaway and recipe sentence *are* the
+    accessible chart.
 12. **All numeric and date output goes through `Intl`.** A decimal comma changes
     whether 4,47 reads as a rating or a count.
 13. **The app runs on a clean clone with no API key** via the deterministic
     fallback parser. It degrades; it does not break.
-14. **Each shadcn component is earned** (§15). One is added when a screen actually
-    needs it — the same thinnest-viable rule the semantic layer follows. Never
-    install the catalogue, and never let the shipped defaults stand in for the
-    approved look; the theme is the approved look.
+14. **Each shadcn component is earned** (architecture §10). One is added when a
+    screen actually needs it — the same thinnest-viable rule the semantic layer
+    follows. Never install the catalogue, and never let the shipped defaults stand
+    in for the approved look; the theme is the approved look.
 
 ## The QuerySpec
 
-The central artifact (§6). Every safety property falls out of its shape.
+The central artifact (architecture §2). Every safety property falls out of its shape.
 
 - **No join field exists.** Relationships are declared once in the semantic layer,
   so the most-cited text-to-SQL failure is eliminated by construction.
@@ -92,19 +100,19 @@ The central artifact (§6). Every safety property falls out of its shape.
 | Single-shot question answering | Amendment added later restructures API, UI state and prompts at once |
 | Semantic layer as code | Reinstates the developer in the loop |
 | Streaming rows out, aggregating in the app | Does not survive a real warehouse |
-| A chat transcript in the side column | §6 makes the spec, not a message history, the unit of conversational state, and a transcript leaves the naive/honest catch with no inline home; the column holds saved, re-runnable recipes |
-| A question box as the centre of the interface | It is the commoditised part every tool in `market-research.md` already has, and a blank box is the blank builder §11 rejects |
+| A chat transcript in the side column | architecture §2 makes the spec, not a message history, the unit of conversational state, and a transcript leaves the naive/honest catch with no inline home; the column holds saved, re-runnable recipes |
+| A question box as the centre of the interface | It is the commoditised part every tool in `market-research.md` already has, and a blank box is the blank builder design §6 rejects |
 | A silent no-API-key mode | Lets the user read a template summary as a narration |
 | A persistent no-API-key banner | Keeps charging for a fact already taken in; a one-time inline note on the first degraded answer instead |
 | `output_format` / assistant prefill | Deprecated; prefill returns 400 on Opus 5. Use structured outputs via `output_config.format` |
 
-Out of scope for v1 (§16): auth, multi-dataset upload, a visual chart editor,
+Out of scope for v1 (design §9): auth, multi-dataset upload, a visual chart editor,
 write-back, recommender modelling, dashboards or saved reports, and any real
 warehouse connection — the interface exists so one can be added; no adapter ships.
 
-Deferred but genuinely additive (§5): UI translation and RTL, generic service
-resilience, row-level security, correction harvesting into the eval set, caching
-and pushdown past ~1M rows, per-tenant cache namespacing, observability.
+Deferred but genuinely additive (architecture §1): UI translation and RTL, generic
+service resilience, row-level security, correction harvesting into the eval set,
+caching and pushdown past ~1M rows, per-tenant cache namespacing, observability.
 
 ## The running record
 
@@ -136,15 +144,16 @@ before updating the expectation.
 | Genre assignments per movie | 2.27 average |
 | Titles with no parseable year | 13 |
 
-The hero moment (§4) is `"What are our top rated titles?"`: 296 titles tied at
+The hero moment (design §4) is `"What are our top rated titles?"`: 296 titles tied at
 5.00 naively, versus *A Streetcar Named Desire* 4.47 (n=20) and *The Shawshank
 Redemption* 4.43 (n=317) honestly. Keep it real, never contrived.
 
 ## Layout and stack
 
-Layout is fixed in §5 — `semantic/` holds the layer as data, `src/server/`
-splits `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and
-`tests/` carries `engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
+Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
+`src/server/` splits `warehouse/` (swappable), `semantic/`, `engine/` (pure) and
+`ai/`, and `tests/` carries `engine.test.ts`, `conformance/` and
+`evals/questions.jsonl`.
 
 Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 on
 `claude-opus-5` · Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.
