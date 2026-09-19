@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
 import { SessionColumn } from "@/components/session-column";
-import type { DatasetProvenance } from "@/lib/view-model";
+import type { DatasetProvenance, StarterCard } from "@/lib/view-model";
 
 /**
  * The composer, in both deployments.
@@ -18,6 +18,9 @@ import type { DatasetProvenance } from "@/lib/view-model";
  * typing behaviour: `tests/ui/` renders with `react-dom/server` and has no DOM
  * (`docs/architecture.md` §10). What a keystroke does is a property of `AskSurface`'s
  * `ask`, which `tests/ask-route.test.ts` already exercises end to end.
+ *
+ * Recommended questions are the interim for GA-14's saved recipes: at most two, already
+ * chosen for the session's history, never labelled “saved.”
  */
 
 const dataset: DatasetProvenance = {
@@ -27,6 +30,25 @@ const dataset: DatasetProvenance = {
   ratings: 100836,
   asOf: "2018-09-26T00:00:00.000Z",
 };
+
+const recommended: readonly StarterCard[] = [
+  {
+    id: "most-rated-titles",
+    question: "Which titles have the most ratings?",
+    recipe: "number of ratings, by title",
+    shape: "ranking",
+    measure: "rating_count",
+    breakdown: "title",
+  },
+  {
+    id: "rating-by-genre",
+    question: "How does average rating compare across genres?",
+    recipe: "average rating, by genre",
+    shape: "ranking",
+    measure: "avg_rating",
+    breakdown: "genre",
+  },
+];
 
 /**
  * The rendered `<textarea>` tag alone.
@@ -45,11 +67,17 @@ function isDisabled(markup: string): boolean {
   return / disabled=""/.test(field(markup));
 }
 
-function render(canInterpret: boolean): string {
+function render(
+  canInterpret: boolean,
+  picks: readonly StarterCard[] = recommended,
+  recommendFromHistory = true,
+): string {
   return renderToStaticMarkup(
     <SessionColumn
       dataset={dataset}
       locale="en"
+      recommended={picks}
+      recommendFromHistory={recommendFromHistory}
       onShowStarters={() => {}}
       canInterpret={canInterpret}
       onAsk={() => {}}
@@ -57,6 +85,28 @@ function render(canInterpret: boolean): string {
     />,
   );
 }
+
+describe("recommended questions (GA-14 interim)", () => {
+  test("the column is labelled Recommended, never Saved", () => {
+    const markup = render(true);
+    expect(markup).toContain("Recommended");
+    expect(markup).not.toContain("Saved recipes");
+    expect(markup).not.toContain("Nothing saved yet");
+  });
+
+  test("it renders the picks it was given, and no more", () => {
+    const markup = render(true);
+    expect(markup).toContain("Which titles have the most ratings?");
+    expect(markup).toContain("How does average rating compare across genres?");
+    expect(markup).not.toContain("What are our top rated titles?");
+  });
+
+  test("with no picks yet, it explains rather than listing a catalogue", () => {
+    const markup = render(true, []);
+    expect(markup).toContain("Ask a question and related ones from this catalogue will show up here.");
+    expect(markup).not.toContain("Which titles have the most ratings?");
+  });
+});
 
 describe("with an interpreter, the box is live", () => {
   test("the field is not disabled", () => {

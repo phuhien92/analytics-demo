@@ -10,6 +10,7 @@ import { ClarifyCard } from "@/components/clarify-card";
 import { SessionColumn } from "@/components/session-column";
 import { ZeroState } from "@/components/zero-state";
 import { AskFault, askStream } from "@/lib/answer-stream";
+import { recommendQuestions } from "@/lib/recommend-questions";
 
 /**
  * The shell, and the one piece of state it keeps: the current answer.
@@ -197,6 +198,22 @@ export function AskSurface({
 
   const busy = phase.kind === "asking";
 
+  const recommended = recommendQuestions(starters, {
+    currentQuestion: phase.kind === "zero" ? null : phase.question,
+    measure:
+      phase.kind === "answered" && phase.answer.ok
+        ? phase.answer.resultSet.spec.measure
+        : null,
+    breakdown:
+      phase.kind === "answered" && phase.answer.ok
+        ? (phase.answer.resultSet.spec.breakdown ?? null)
+        : null,
+    nearestQuestions:
+      phase.kind === "answered" && !phase.answer.ok
+        ? phase.answer.rejection.nearest.map((option) => option.question)
+        : [],
+  });
+
   return (
     // The rail and the session column are *persistent* (`docs/design.md` §6), so on a
     // wide viewport the shell owns the viewport height and only the ask column scrolls —
@@ -290,6 +307,8 @@ export function AskSurface({
         <SessionColumn
           dataset={dataset}
           locale={locale}
+          recommended={recommended}
+          recommendFromHistory={phase.kind !== "zero"}
           onShowStarters={reset}
           canInterpret={canInterpret}
           onAsk={ask}

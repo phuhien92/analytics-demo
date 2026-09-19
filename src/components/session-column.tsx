@@ -3,22 +3,20 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 
-import type { DatasetProvenance } from "@/lib/view-model";
+import type { DatasetProvenance, StarterCard } from "@/lib/view-model";
 import { Button } from "@/components/ui/button";
-import { formatters } from "@/lib/intl";
 
 /**
  * The persistent side column, and the composer anchored at its foot.
  *
- * ## It holds recipes, not a transcript
+ * ## Recommended questions for now; saved recipes later
  *
- * Settled in `docs/design.md` §6 and listed in `AGENTS.md` among the decisions not to
- * resurrect: `docs/architecture.md` §2 makes the **spec** the unit of conversational
- * state, so a message history would carry the same information in a form the user cannot
- * re-run, and would leave the naive/honest catch with no inline home. The column is
- * empty here because saving is GA-14's increment and GA-14 is deferred
- * (`docs/build-spec.md` §0) — the region and its copy are shell, which is what GA-10
- * delivers.
+ * Settled in `docs/design.md` §6: the column holds **recipes**, not a transcript —
+ * re-runnable questions, not a message history. Saving those recipes is GA-14 and is
+ * deferred (`docs/build-spec.md` §0). Until then the column shows **one or two**
+ * recommended questions shaped by the current session (`lib/recommend-questions.ts`) —
+ * declared starters only, never invented copy, never labelled “saved.” When GA-14 lands,
+ * the same row shape becomes a stored spec.
  *
  * ## The composer is live exactly when the deployment can read a sentence
  *
@@ -44,6 +42,10 @@ import { formatters } from "@/lib/intl";
 export type SessionColumnProps = {
   readonly dataset: DatasetProvenance;
   readonly locale: string;
+  /** At most two, already chosen for this session's history. */
+  readonly recommended: readonly StarterCard[];
+  /** False on the zero state — the pick is a start, not a follow-on. */
+  readonly recommendFromHistory: boolean;
   readonly onShowStarters: () => void;
   /** Whether this deployment can read a freely typed question (`lib/view-model.ts`). */
   readonly canInterpret: boolean;
@@ -53,13 +55,13 @@ export type SessionColumnProps = {
 
 export function SessionColumn({
   dataset,
-  locale,
+  recommended,
+  recommendFromHistory,
   onShowStarters,
   canInterpret,
   onAsk,
   busy,
 }: SessionColumnProps) {
-  const format = formatters(locale);
   const [draft, setDraft] = useState("");
   const question = draft.trim();
   const canSubmit = canInterpret && question !== "" && !busy;
@@ -89,13 +91,31 @@ export function SessionColumn({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <h2 className="text-subhead text-ga-ink">Saved recipes</h2>
-        <p className="mt-2 max-w-measure text-small text-ga-ink-secondary">
-          Nothing saved yet. A saved recipe is the <em>question</em>, not the answer — re-run
-          it and it recomputes from scratch against the catalogue as of{" "}
-          {format.date(dataset.asOf)}, with today&apos;s checks and a fresh record of how it
-          was made.
+        <h2 className="text-subhead text-ga-ink">Recommended</h2>
+        <p className="mt-2 text-small text-ga-ink-secondary">
+          {recommended.length === 0
+            ? "Ask a question and related ones from this catalogue will show up here."
+            : recommendFromHistory
+              ? "Next from this catalogue, based on what you just asked."
+              : "A place to start from this catalogue."}
         </p>
+        {recommended.length > 0 ? (
+          <ul className="mt-4 m-0 flex list-none flex-col gap-0 border-t border-ga-line p-0">
+            {recommended.map((starter) => (
+              <li key={starter.id} className="border-b border-ga-line">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onAsk(starter.question)}
+                  className="flex w-full cursor-pointer flex-col gap-0.5 px-0 py-3 text-left transition-colors duration-(--ga-dur-fast) ease-ga hover:bg-ga-raised disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="text-body font-medium text-ga-ink">{starter.question}</span>
+                  <span className="text-small text-ga-ink-muted">{starter.recipe}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div className="border-t border-ga-line px-5 py-4">

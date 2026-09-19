@@ -58,6 +58,8 @@ export function starterCards(layer: SemanticLayer, locale = "en"): StarterCard[]
         question,
         recipe: starterRecipe(starter, layer, locale),
         shape: starter.sort.by === "measure" ? ("ranking" as const) : ("sequence" as const),
+        measure: starter.measure,
+        breakdown: starter.breakdown,
       },
     ];
   });

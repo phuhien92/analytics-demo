@@ -52,6 +52,10 @@ export type StarterCard = {
    * same distinction that chooses the chart form.
    */
   readonly shape: "ranking" | "sequence";
+  /** Spec measure id — used to recommend a related question after an answer. */
+  readonly measure: string;
+  /** Spec breakdown id — same purpose as `measure`. */
+  readonly breakdown: string;
 };
 
 /**
