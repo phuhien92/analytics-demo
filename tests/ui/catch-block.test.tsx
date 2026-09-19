@@ -5,7 +5,14 @@ import type { ResultRow, ResultSet } from "@/server/contracts";
 import { AnswerCard } from "@/components/answer-card";
 import { buildComparison, materiallyDifferent } from "@/server/engine/compare";
 
-import { labels, layer, topRatedTitles, topRatedTitlesCaught, topRatedTitlesUnchecked } from "./fixtures";
+import {
+  labels,
+  layer,
+  ratingByDecadeCaught,
+  topRatedTitles,
+  topRatedTitlesCaught,
+  topRatedTitlesUnchecked,
+} from "./fixtures";
 
 /**
  * The catch, asserted rather than described.
@@ -283,6 +290,50 @@ describe("the escape", () => {
     expect(strip).toContain("100,836</b> of 100,836 records");
     expect(strip).toContain("9,742</b> of 9,742 title values included");
     expect(strip).not.toContain("Checked how many ratings each title has");
+  });
+});
+
+describe("a sequence says what its ordering says, and nothing more", () => {
+  /**
+   * The block renders for a **sequence** too — `rating-by-decade` is a shipped starter
+   * ordered by its breakdown, and entry 56 measured it producing a material comparison.
+   * Its first row is the *earliest* decade, not the highest-rated, so every clause that
+   * called it a leader was making a claim the ordering does not make.
+   *
+   * That is not a copy nicety. This block exists to show a confident claim the data does
+   * not support; ranking language on a sequence is the block making one of its own.
+   * `ai/narrate-template.ts` has refused the word "leader" for sequences since GA-07 for
+   * exactly this reason (entry 58).
+   */
+  const html = answerMarkup(ratingByDecadeCaught);
+
+  test("the block still renders — a sequence catch is a catch", () => {
+    expect(html).toContain("The catch");
+    expect(html).toContain("Without the checks");
+    expect(html).toContain("1900s");
+  });
+
+  test("no clause on it claims a ranking", () => {
+    expect(html).not.toContain("would have led with");
+    expect(html).not.toContain("Led by");
+    expect(html).not.toContain("Ranked on");
+    expect(html).not.toContain("are ranked on both sides");
+    expect(html).not.toContain("Nothing ranked");
+  });
+
+  test("it says what the ordering does say", () => {
+    expect(html).toContain("would have started at 1900s");
+    expect(html).toContain("Starts at 1900s");
+    expect(html).toContain("Ordered by release decade, with nothing checked.");
+    expect(html).toContain("Ordered by release decade, after the checks named below.");
+  });
+
+  test("the ranking wording is untouched on a ranking", () => {
+    // The hero moment's copy must not move: the fix is a branch, not a replacement.
+    const ranking = answerMarkup(topRatedTitlesCaught);
+    expect(ranking).toContain("Ranked on average rating alone, with nothing checked.");
+    expect(ranking).toContain("Ranked on average rating, after the checks named below.");
+    expect(ranking).toContain("296 tied at 5.00");
   });
 });
 

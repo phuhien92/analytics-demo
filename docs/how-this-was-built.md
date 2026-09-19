@@ -2357,6 +2357,44 @@ per-measure display format GA-10 recorded.
 **Cost of deciding later.** A locale added on top of an inflecting component means auditing
 every copy string for an English assumption, which is the audit invariant 8 exists to avoid.
 
+### 58. The feature that catches unsupported claims was making one
+
+**Decided.** Every clause of the catch block's naive side is shape-aware, the way its
+subhead already was: a sequence says "would have started at 1900s" and "Ordered by release
+decade", never "would have led with" or "Ranked on". One branch, on `shape`, which is
+`spec.sort.by` and nothing else. The block is **not** withheld from sequences.
+
+**Evidence — and this is the part worth getting right rather than merely fixing.** The
+block exists to show the user a confident claim the data does not support. On
+`rating-by-decade` it was *making* one. That starter sorts `by: "breakdown"`, so its
+ordering is chronological and its first row is simply the earliest decade — yet the block
+announced "would have led with 1900s", "Led by 1900s", "Ranked on average rating alone",
+and closed with "the same release decade values are ranked on both sides". Four clauses
+each asserting a rank the ordering never computed, on a starter entry 56 had already
+measured as producing a block.
+
+The contradiction was internal, not novel. The subhead had been made sequence-aware —
+"it starts at …" — so the component **knew** the shape and said something else four
+clauses later. `ai/narrate-template.ts` had taken this exact position in GA-07 and written
+down why: "calling its first row the leader would be a claim the ordering does not make."
+Fixing this was completing an approved design, not extending one.
+
+**Found by review, not by the author.** It is recorded that way deliberately. The hero
+question is a ranking, so every figure, screenshot and manual pass in this increment
+exercised the ranking branch; the sequence branch shipped in the same component, reachable
+from a chip on the zero state, and was never looked at. A defect that only the *other*
+starter reveals is exactly what a reviewer who reads the diff rather than the demo is for.
+
+**Rejected: declining to draw the block for sequences.** It was the other remedy the
+finding offered, and it is worse. `rating-by-decade` has a genuinely material difference —
+a check removes a member — so suppressing the block there withholds a true catch. This
+product's two symmetric failures are manufacturing a catch that is not there and hiding
+one that is; trading a copy defect for the second is not a fix.
+
+**Cost of deciding later.** Small in code — one branch and a fixture — and large in
+credibility. The one screen whose whole argument is "we tell you when the obvious answer
+would have misled you" cannot itself assert a ranking that was never computed.
+
 ### What the increment also measured
 
 **The block is the largest object on the screen, and that is checked rather than asserted.**

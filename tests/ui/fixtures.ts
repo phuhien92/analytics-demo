@@ -186,3 +186,58 @@ export const ratingsByYear: ResultSet = {
     { key: "1998", value: 507, rawValue: 507, n: 507 },
   ],
 };
+
+/**
+ * A **sequence** comparison: ordered by the breakdown, not by the measure.
+ *
+ * `rating-by-decade` is a shipped starter whose spec sorts `by: "breakdown"`, and
+ * `docs/how-this-was-built.md` entry 56 measured it producing a material comparison. Its
+ * first row is the *earliest* decade, not the highest-rated one — which is exactly why
+ * the block's copy may not call it a leader. Figures are illustrative; what this fixture
+ * exists to pin is the shape.
+ */
+export const ratingByDecadeCaught: ResultSet = {
+  ...topRatedTitles,
+  spec: {
+    ...topRatedTitles.spec,
+    breakdown: "release_decade",
+    sort: { by: "breakdown", dir: "asc", tieBreak: "title" },
+  },
+  rows: [
+    { key: "1930s", value: 3.86, rawValue: 386, n: 210 },
+    { key: "1940s", value: 3.91, rawValue: 391, n: 385 },
+    { key: "1950s", value: 3.82, rawValue: 382, n: 690 },
+  ],
+  trust: {
+    ...topRatedTitles.trust,
+    guardsApplied: [
+      {
+        id: "min_evidence",
+        params: { minObservations: 20 },
+        explanation:
+          "Checked how many ratings each title has, and left out the ones below the threshold.",
+        excluded: 8445,
+      },
+    ],
+    coverage: {
+      includedObservations: 67898,
+      totalObservations: 100836,
+      includedMembers: 11,
+      totalMembers: 12,
+    },
+    comparison: {
+      material: true,
+      naive: [
+        { key: "1900s", value: 3.5, rawValue: 350, n: 2 },
+        { key: "1930s", value: 3.77, rawValue: 377, n: 246 },
+        { key: "1940s", value: 3.88, rawValue: 388, n: 412 },
+      ],
+      honest: [
+        { key: "1930s", value: 3.86, rawValue: 386, n: 210 },
+        { key: "1940s", value: 3.91, rawValue: 391, n: 385 },
+        { key: "1950s", value: 3.82, rawValue: 382, n: 690 },
+      ],
+      tiedAtTop: { naive: 1, honest: 1 },
+    },
+  },
+};

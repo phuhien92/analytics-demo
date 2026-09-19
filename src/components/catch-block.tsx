@@ -235,14 +235,30 @@ export function CatchBlock({
   const tied = tiedAtTop.naive;
   const naiveIsTie = tied > 1 && shape === "ranking";
 
+  /**
+   * **The naive side says what the ordering says, and nothing more.**
+   *
+   * A sequence is ordered by its breakdown — by decade, by year — so its first row is
+   * simply the earliest, and calling it a leader is a claim the ordering does not make.
+   * `ai/narrate-template.ts` has refused that word for sequences since GA-07 for exactly
+   * this reason, and every clause on this side follows it.
+   *
+   * It is worth saying why this is not a copy nicety. The block exists to show a
+   * confident claim the data does not support; on a sequence, ranking language makes one
+   * — the feature that catches unsupported claims making one of its own. Found by review
+   * (`docs/how-this-was-built.md` entry 58).
+   */
   const headline =
     naiveLead === undefined
       ? `Asked without the checks, this question answers from a different set of ${members}.`
       : naiveIsTie
         ? `Asked without the checks, this question would have handed you ` +
           `${format.count(tied)} ${members} tied at ${value(naiveLead.value)}.`
-        : `Asked without the checks, this question would have led with ` +
-          `${naiveLead.key ?? measureLabel} at ${value(naiveLead.value)}.`;
+        : shape === "sequence"
+          ? `Asked without the checks, this question would have started at ` +
+            `${naiveLead.key ?? measureLabel} with ${value(naiveLead.value)}.`
+          : `Asked without the checks, this question would have led with ` +
+            `${naiveLead.key ?? measureLabel} at ${value(naiveLead.value)}.`;
 
   const subhead =
     honestLead === undefined
@@ -257,14 +273,25 @@ export function CatchBlock({
   const naiveHeading = naiveIsTie
     ? `${format.count(tied)} tied at ${value(naiveLead!.value)}`
     : naiveLead === undefined
-      ? `Nothing ranked`
-      : `Led by ${naiveLead.key ?? measureLabel} at ${value(naiveLead.value)}`;
+      ? shape === "sequence"
+        ? `Nothing to show`
+        : `Nothing ranked`
+      : shape === "sequence"
+        ? `Starts at ${naiveLead.key ?? measureLabel} with ${value(naiveLead.value)}`
+        : `Led by ${naiveLead.key ?? measureLabel} at ${value(naiveLead.value)}`;
+
+  // "Ordered by <breakdown>" for a sequence: it is the breakdown that decides the order,
+  // and the measure has no say in it. Saying "ranked on <measure>" would be describing a
+  // different query from the one that ran.
+  const naiveOrdering =
+    shape === "sequence"
+      ? `Ordered by ${breakdownLabel ?? measureLabel}, with nothing checked`
+      : `Ranked on ${measureLabel} alone, with nothing checked`;
 
   const naiveDetail =
     tied > naive.length
-      ? `Ranked on ${measureLabel} alone, with nothing checked. First ` +
-        `${format.count(naive.length)} of ${format.count(tied)}.`
-      : `Ranked on ${measureLabel} alone, with nothing checked.`;
+      ? `${naiveOrdering}. First ${format.count(naive.length)} of ${format.count(tied)}.`
+      : `${naiveOrdering}.`;
 
   const naiveFoot =
     survivors === 0
@@ -313,7 +340,11 @@ export function CatchBlock({
     );
   }
   if (closing.length === 0) {
-    closing.push(`The same ${members} are ranked on both sides, and the figures moved.`);
+    closing.push(
+      shape === "sequence"
+        ? `The same ${members} appear on both sides, and the figures moved.`
+        : `The same ${members} are ranked on both sides, and the figures moved.`,
+    );
   }
 
   return (
@@ -384,7 +415,11 @@ export function CatchBlock({
           badge="What we are showing you"
           heading={honestHeading}
           headingId="ga-catch-honest"
-          detail={`Ranked on ${measureLabel}, after the checks named below.`}
+          detail={
+            shape === "sequence"
+              ? `Ordered by ${breakdownLabel ?? measureLabel}, after the checks named below.`
+              : `Ranked on ${measureLabel}, after the checks named below.`
+          }
           rows={honest}
           value={value}
           records={records}

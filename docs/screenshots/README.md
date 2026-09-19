@@ -16,6 +16,7 @@ on the compiled store, never mockups or renderings.
 | `ga-12-the-catch.jpg` | The hero moment answered, led by the catch: 296 title values tied at 5.00 against *A Streetcar Named Desire* 4.47 from 20 records, the closing line, and the escape | GA-12 |
 | `ga-12-checks-off.jpg` | The escape taken — every check named as not applied, the trust strip down to coverage alone, and the way back | GA-12 |
 | `ga-12-no-catch.jpg` | A question no check changed: the takeaway, the chart and the trust strip, and **no comparison block at all** | GA-12 |
+| `ga-12-sequence.jpg` | The same block on a **sequence** — `rating-by-decade`, ordered chronologically — saying "would have started at 1900" rather than claiming a rank the ordering never computed | GA-12 |
 
 A screenshot goes stale the moment the screen changes. Replace the file rather than adding
 a second one, and only keep an image a document or a pull request actually links to.

@@ -1388,6 +1388,14 @@ the surface reads "296 title values", and that difference is deliberate. Words t
 owns — `record`/`records` — *are* inflected, because the escape made `n === 1` reachable
 for the first time and "as few as 1 records" is the sentence carrying the whole argument.
 
+**Copy never claims an ordering the spec did not make.** The block reads `shape` — the
+same `spec.sort.by` rule the chart reads — for every clause on the naive side, the honest
+side's detail and the closing fallback, not just the subhead. A sequence is ordered by its
+breakdown, so its first row is the earliest member and calling it a leader is a claim the
+ordering does not make; `ai/narrate-template.ts` refuses the same word for the same reason.
+The block renders for sequences regardless: withholding it would hide a true catch, which
+is the mirror of manufacturing a false one.
+
 **One column formatter spans both lists.** `Formatters.column` exists so a column does not
 appear to change precision row by row; two lists set side by side to be compared are one
 column for that purpose. Taken separately the naive side is all exactly `5` against the
