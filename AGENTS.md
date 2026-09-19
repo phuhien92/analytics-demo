@@ -20,7 +20,9 @@ Authoritative sources, in this order:
   it is how the design got here.
 - `docs/build-spec.md` — the v1 build plan the sixteen increments came from. A
   *consumed* document, not a live contract: each landed increment turns a piece of
-  it into history, and the code wins where the two disagree.
+  it into history, and the code wins where the two disagree. **Read its §0 first:** the
+  demo stops after GA-11 at build position 12, and six increments are deferred rather
+  than cancelled. Six unticked increments are not an abandoned build.
 
 If code and the docs disagree, the doc wins until the doc is changed. A change lands
 in the doc first, with its rationale, then in code — and in the right doc: technical
@@ -119,6 +121,17 @@ The central artifact (architecture §2). Every safety property falls out of its 
 | SQLite as the conformance suite's second adapter | Superseded by a captain decision in GA-06: Postgres is what a real deployment is pointed at, so two engines agreeing exactly is a stronger claim than a seam existing. `docs/build-spec.md`'s `sqlite-store.ts` line was stale and is corrected |
 | An embedded or containerised Postgres for the suite | Docker is not present on every machine and an embedded engine would make the loud-skip path dead code — the suite would always appear to prove two adapters. One connection string, any Postgres (architecture §5b) |
 | Keying an aggregated member on its label alone | Five title strings are each shared by two `movieId`s, so it merges entities the source keeps apart — 9,737 members against 9,742 declared titles. Found by the second adapter in GA-06; the key is `(memberId, key)` |
+| Layering a theme over shadcn's defaults | Leaves the defaults reachable, so the next component added arrives grey. `src/app/globals.css` **replaces** what the CLI wrote: the design-system tokens are `:root`, mapped onto shadcn's semantic names (architecture §11) |
+| Deleting `@custom-variant dark` because nothing sets `.dark` | It does not remove dark mode — it restores Tailwind v4's `prefers-color-scheme` default, and every `dark:` utility inside the shadcn components fires on a machine set to dark. One theme, light, and that line is what holds it |
+| The mock's raw hex as the theme | The mock was drawn on `#5B45D6`; landing the tokens fixed two measured contrast defects (`design-system/README.md`). `design-system/styles.css` is the version of record, not the drawing |
+| Truncating a bar chart's axis to the data's range | The top ten titles sit between 4.28 and 4.47; rescaling reads as a large difference where the numbers say a small one — this product's failure mode drawn as a picture. The axis starts at zero and the flatness is the finding (architecture §11) |
+| A smoothed curve on a sequence chart | A monotone spline draws values between two members the engine never computed |
+| Choosing a chart form from the dimension | Dataset knowledge in the surface, against invariant 6. The form reads `spec.sort.by`: ordered by measure is a ranking, ordered by breakdown is a sequence |
+| A visually-hidden table behind the chart | "Reachable, not merely present" (design §7). A native `<details>`/`<summary>` disclosure serves everyone and needs no script; `tests/ui/` asserts against `visibility:hidden`, `display:none` and `sr-only` |
+| shadcn's `<table>` for the accessible table | Nests the `<table>` in a scroll container — a `<div>` between the figure and the one element the accessibility claim rests on, for four utility classes of styling |
+| A second `Intl` formatter anywhere on the surface | `src/lib/intl.ts` is the only one, enforced by `tests/ui/surface-rules.test.ts`. A formatter reachable two ways is one that disagrees with itself |
+| Rendering an as-of in the reader's own zone | `2018-09-26T00:00:00.000Z` names **25 September** west of Greenwich. All dates format in UTC |
+| A standing catalogue summary on the zero state | Considered during the UI direction and declined: a number that exists before anyone asked for anything. The permitted line names the data *source*, read off the store manifest, never from a spec (build-spec §1.2) |
 
 Out of scope for v1 (design §9): auth, multi-dataset upload, a visual chart editor,
 write-back, recommender modelling, dashboards or saved reports, and any real
@@ -178,10 +191,18 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
 `engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/`, `conformance/` and
-`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`). `src/app/api/ask/` splits
-`route.ts` (the composition root: disk reads, process singletons, `POST`) from `answer.ts`
-(assembly, status codes, frame order, the stream), so the whole HTTP surface is testable
-with an injected warehouse — no compiled `.store/`, no server.
+`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`) and `ui/`. `src/app/api/ask/`
+splits `route.ts` (the composition root: disk reads, process singletons, `POST`) from
+`answer.ts` (assembly, status codes, frame order, the stream), so the whole HTTP surface is
+testable with an injected warehouse — no compiled `.store/`, no server.
+
+The surface adds three places (architecture §1 and §11). `src/lib/` is **client-safe and
+imports no `node:*`**: `intl.ts` is the only formatter the surface has, `answer-stream.ts`
+reads the route's NDJSON, `view-model.ts` is types both sides share.
+`src/server/surface/zero-state.ts` builds the first paint from the store **manifest** and the
+layer, and imports neither `engine/` nor `warehouse/` — which is what makes "no computed
+result before a question" structural rather than editorial. `src/components/ui/` holds the
+shadcn components as copied-in source; each one is earned, and this screen earned three.
 
 `tests/conformance/` compiles its store in memory from `data/`, so it runs on a clean
 clone without `npm run ingest` — and both adapters start from the same `Store`, so a
@@ -208,6 +229,11 @@ nothing under `warehouse/`, `engine/` or `ai/`, because the client imports it to
 Every schema in it is `z.strictObject()`; `.strict()` is Zod 3's form and still works
 through the v4 compatibility surface, so it fails silently rather than loudly and is
 banned from the module.
+
+Tailwind v4 has **no `tailwind.config.js`**: `postcss.config.mjs` loads
+`@tailwindcss/postcss` and the whole theme is declared in `src/app/globals.css`, where
+`@theme inline` maps the design system's tokens onto both shadcn's semantic names and a
+`ga-`-prefixed set of utilities.
 
 Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 on
 `claude-opus-5` · Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.
@@ -251,6 +277,13 @@ under `src/` imports it, it holds no driver, and `pg` is a devDependency — ass
 when the next payload lands; it passes against different data. Each case also writes out
 its guards in full and pins its whole trust report, for the same reason a pinned figure
 carries its definition.
+
+`tests/ui/` renders components with `react-dom/server` and asserts on the markup — no DOM,
+no jsdom, same reason architecture §10 keeps it out of the chart's server render. It holds
+three rules that fail silently otherwise: the `<table>` is reachable through a disclosure and
+is not hidden with CSS, the surface has exactly one `Intl` formatter, and the first paint
+cannot reach the engine. **GA-15's verification pass is deferred (build-spec §0), so these
+are what hold the accessibility line** — build them in, do not retrofit them.
 
 ## README requirements
 

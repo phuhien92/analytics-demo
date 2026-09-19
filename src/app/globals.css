@@ -1,27 +1,300 @@
+@import "tailwindcss";
+@import "shadcn/tailwind.css";
+
 /*
- * Deliberately the minimum possible. GA-10 runs `shadcn init`, which rewrites this
- * file; what is overwritten should be almost nothing (build-spec §8.2).
+ * The theme.
+ *
+ * `shadcn init` wrote a neutral greyscale house style here. It is gone: the approved
+ * look wins, not the defaults (`docs/architecture.md` §10). Every value below is
+ * `design-system/styles.css` — the token set that was contrast-checked at WCAG 2.1 AA
+ * — either copied verbatim into `:root` as a `--ga-*` token, or mapped onto the
+ * semantic name shadcn's components read. Nothing here is a new colour.
+ *
+ * The mapping is deliberate rather than mechanical, and the one place it is worth
+ * reading twice is `--accent`. In the design system "accent" is the single strong
+ * emphasis colour; in shadcn it is the *quiet* ground a hovered or selected row sits
+ * on. They are mapped to `--ga-accent-soft` / `--ga-accent-ink` accordingly, and the
+ * strong colour is reachable as `--color-ga-accent`. Two vocabularies, one palette.
+ *
+ * The design system's values, not the mock's raw hex. The mock was drawn against
+ * `--accent:#5B45D6`; `design-system/README.md` records that landing the tokens moved
+ * the accent to `#0A6FD1` and `--ga-ink-muted` to `#655F7C` because two measured
+ * contrast defects were fixed at the token definition. The tokens are the version of
+ * record, so the surface inherits the fixes rather than the drawing.
  */
 
+/*
+ * Kept, and load-bearing: it re-points Tailwind's `dark:` variant at a `.dark` class
+ * that nothing in this app ever sets. Without it Tailwind v4's built-in variant falls
+ * back to `prefers-color-scheme`, and every `dark:` utility inside the shadcn
+ * components would fire on a machine set to dark — repainting the approved look with
+ * greys that were never contrast-checked. There is one theme here, and it is light.
+ */
+@custom-variant dark (&:is(.dark *));
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+
+  /* ── surfaces ───────────────────────────────── */
+  --ga-bg: #f6f5fc;
+  --ga-surface: #ffffff;
+  --ga-raised: #f2f0fb;
+  --ga-sunken: #eae7f8;
+
+  /* ── ink ────────────────────────────────────── */
+  --ga-ink: #1c1830;
+  --ga-ink-secondary: #524c6b;
+  --ga-ink-muted: #655f7c;
+  --ga-ink-on-accent: #ffffff;
+
+  /* ── accent (the only emphasis colour) ──────── */
+  --ga-accent: #0a6fd1;
+  --ga-accent-ink: #0a5caf;
+  --ga-accent-hover: #0961b7;
+  --ga-accent-active: #08539e;
+  --ga-accent-soft: #e5effb;
+  --ga-accent-soft-active: #cfe2f8;
+  --ga-accent-line: #b4d0f2;
+
+  /* ── lines ──────────────────────────────────── */
+  --ga-line: #e3dff2;
+  --ga-line-strong: #d3cdea;
+
+  /* ── semantic (never alone: always with a label) ── */
+  --ga-caution-bg: #fff6e8;
+  --ga-caution-ink: #7a4e00;
+  --ga-caution-line: #ebcf9e;
+  --ga-good-bg: #e9f6ef;
+  --ga-good-ink: #17603a;
+  --ga-good-line: #a9d7bf;
+  --ga-risk-bg: #fbf2f2;
+  --ga-risk-ink: #8a2f2f;
+  --ga-risk-line: #e8c4c4;
+
+  /* ── radius ─────────────────────────────────── */
+  --ga-radius-xs: 4px;
+  --ga-radius-s: 8px;
+  --ga-radius-m: 12px;
+  --ga-radius-l: 16px;
+  --ga-radius-xl: 24px;
+  --ga-radius-pill: 999px;
+
+  /* ── elevation ──────────────────────────────── */
+  --ga-shadow-card: 0 1px 2px rgba(28, 24, 48, 0.04), 0 2px 8px rgba(28, 24, 48, 0.04);
+  --ga-shadow-lift: 0 2px 4px rgba(28, 24, 48, 0.05), 0 8px 24px rgba(28, 24, 48, 0.07);
+  --ga-shadow-overlay: 0 8px 16px rgba(28, 24, 48, 0.07), 0 24px 56px rgba(28, 24, 48, 0.12);
+
+  /* ── focus ──────────────────────────────────── */
+  --ga-focus-width: 3px;
+  --ga-focus-offset: 2px;
+
+  /* ── motion ─────────────────────────────────── */
+  --ga-ease: cubic-bezier(0.2, 0.6, 0.25, 1);
+  --ga-dur-fast: 110ms;
+  --ga-dur: 180ms;
+
+  /* ── measure ────────────────────────────────── */
+  --ga-measure: 64ch;
+
+  /* ── the same palette, under shadcn's names ─── */
+  --background: var(--ga-bg);
+  --foreground: var(--ga-ink);
+  --card: var(--ga-surface);
+  --card-foreground: var(--ga-ink);
+  --popover: var(--ga-surface);
+  --popover-foreground: var(--ga-ink);
+  --primary: var(--ga-accent);
+  --primary-foreground: var(--ga-ink-on-accent);
+  --secondary: var(--ga-raised);
+  --secondary-foreground: var(--ga-ink);
+  --muted: var(--ga-sunken);
+  --muted-foreground: var(--ga-ink-muted);
+  --accent: var(--ga-accent-soft);
+  --accent-foreground: var(--ga-accent-ink);
+  --destructive: var(--ga-risk-ink);
+  --border: var(--ga-line);
+  --input: var(--ga-line-strong);
+  --ring: var(--ga-accent);
+  --radius: var(--ga-radius-l);
 }
 
-* {
-  box-sizing: border-box;
+@theme inline {
+  --font-sans: var(--font-ibm-plex-sans), "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /*
+   * The design system's own names, reachable as utilities: `bg-ga-raised`,
+   * `text-ga-ink-muted`, `border-ga-line-strong`. Kept prefixed so a component says
+   * which vocabulary it is speaking — shadcn's semantic roles, or the token set.
+   */
+  --color-ga-bg: var(--ga-bg);
+  --color-ga-surface: var(--ga-surface);
+  --color-ga-raised: var(--ga-raised);
+  --color-ga-sunken: var(--ga-sunken);
+  --color-ga-ink: var(--ga-ink);
+  --color-ga-ink-secondary: var(--ga-ink-secondary);
+  --color-ga-ink-muted: var(--ga-ink-muted);
+  --color-ga-ink-on-accent: var(--ga-ink-on-accent);
+  --color-ga-accent: var(--ga-accent);
+  --color-ga-accent-ink: var(--ga-accent-ink);
+  --color-ga-accent-hover: var(--ga-accent-hover);
+  --color-ga-accent-soft: var(--ga-accent-soft);
+  --color-ga-accent-line: var(--ga-accent-line);
+  --color-ga-line: var(--ga-line);
+  --color-ga-line-strong: var(--ga-line-strong);
+  --color-ga-caution-bg: var(--ga-caution-bg);
+  --color-ga-caution-ink: var(--ga-caution-ink);
+  --color-ga-caution-line: var(--ga-caution-line);
+  --color-ga-good-bg: var(--ga-good-bg);
+  --color-ga-good-ink: var(--ga-good-ink);
+  --color-ga-good-line: var(--ga-good-line);
+  --color-ga-risk-bg: var(--ga-risk-bg);
+  --color-ga-risk-ink: var(--ga-risk-ink);
+  --color-ga-risk-line: var(--ga-risk-line);
+
+  /*
+   * The approved type scale, as Tailwind text utilities: `text-display` … `text-micro`
+   * carry the size, line height and tracking together, so a component cannot take one
+   * and forget the other two.
+   */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.022em;
+  --text-title: 2rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.018em;
+  --text-section: 1.5rem;
+  --text-section--line-height: 1.25;
+  --text-section--letter-spacing: -0.012em;
+  --text-subhead: 1.1875rem;
+  --text-subhead--line-height: 1.35;
+  --text-subhead--letter-spacing: -0.008em;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.6;
+  --text-lead--letter-spacing: -0.002em;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.6;
+  --text-body--letter-spacing: 0em;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.5;
+  --text-small--letter-spacing: 0.002em;
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.4;
+  --text-micro--letter-spacing: 0.06em;
+
+  /* 450 is the design system's text weight; it has no Tailwind default. */
+  --font-weight-text: 450;
+
+  /*
+   * shadcn derives its radius steps from `--radius` by multiplication. Replaced with
+   * the design system's own scale, so `rounded-lg` is 12px because the scale says 12px
+   * — and `rounded-3xl`/`rounded-4xl`, which the badge uses, land on the pill the
+   * trust strip is drawn with.
+   */
+  --radius-sm: var(--ga-radius-xs);
+  --radius-md: var(--ga-radius-s);
+  --radius-lg: var(--ga-radius-m);
+  --radius-xl: var(--ga-radius-l);
+  --radius-2xl: var(--ga-radius-xl);
+  --radius-3xl: var(--ga-radius-pill);
+  --radius-4xl: var(--ga-radius-pill);
+
+  --shadow-ga-card: var(--ga-shadow-card);
+  --shadow-ga-lift: var(--ga-shadow-lift);
+  --shadow-ga-overlay: var(--ga-shadow-overlay);
+
+  --ease-ga: var(--ga-ease);
+
+  --container-measure: var(--ga-measure);
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-body font-text text-foreground;
+    /*
+     * Every numeral in this product is meant to be compared with the numeral above it,
+     * so figures line up in a column rather than jittering with the glyph widths.
+     */
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+
+  table,
+  td,
+  th,
+  input,
+  output,
+  data,
+  time {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /*
+   * One ring, everywhere, always visible — the design system's own rule. It is written
+   * here rather than left to each component so a plain `<summary>` or `<details>` gets
+   * the same indicator a shadcn `Button` does.
+   */
+  :focus-visible {
+    outline: var(--ga-focus-width) solid var(--ga-accent);
+    outline-offset: var(--ga-focus-offset);
+    border-radius: var(--ga-radius-xs);
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /*
+   * `docs/design.md` §7 requires it, and a bar chart that grows on mount is exactly the
+   * motion it is about.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-body {
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
-  line-height: 1.5;
+@layer components {
+  /* The eyebrow: uppercase mono, used for provenance lines and section labels. */
+  .ga-eyebrow {
+    @apply text-micro font-mono font-medium text-ga-ink-muted uppercase;
+  }
 }

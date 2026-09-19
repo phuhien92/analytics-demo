@@ -118,19 +118,33 @@ src/
       narrate.ts              ResultSet -> takeaway (streamed)
       narrate-template.ts     the same, deterministic; the no-key producer
       fallback-parser.ts      deterministic, no-API-key path
+    surface/
+      zero-state.ts           manifest + layer -> the first paint's data; see section 11
   app/
     api/ask/
       route.ts                the composition root: disk, process singletons, POST
       answer.ts               assembly, status codes, frame order, the stream
-    page.tsx
-  components/                 QuestionBox, AnswerCard, RecipeSentence,
-                              Chart, NaiveComparison, ProvenanceDrawer
+    globals.css               THE THEME — design-system tokens under shadcn's names
+    layout.tsx                the approved typefaces
+    page.tsx                  a server component; reads the manifest, runs no spec
+  lib/                        CLIENT-SAFE, no node: imports
+    intl.ts                   the one formatter; invariant 12 lives here
+    answer-stream.ts          the NDJSON reader for POST /api/ask
+    view-model.ts             types only, shared by the server builder and the client
+    utils.ts                  shadcn's `cn`
+  components/                 AskSurface, AppRail, ZeroState, AnswerCard, Chart,
+                              ResultTable, TrustStrip, ProvenanceDetails,
+                              ClarifyCard, SessionColumn
+                              (RecipeSentence is GA-11's; NaiveComparison is GA-12's)
+    ui/                       shadcn components, copied in as source: card, button, badge
 tests/
   contracts.test.ts           the core contracts hold their shape
   pinned-figures.test.ts      the pinned figures, as regression tests on the ETL
   semantic.test.ts            the layer loads, and a broken one does not
   engine.test.ts              the engine: hero, replay, tie-break, determinism
   ask-route.test.ts           the route: refusal at 200, provenance, the stream
+  ui/                         the surface: the reachable table, the formatter rule,
+                              the zero state's permitted numerals
   conformance/                spec -> expected numbers; EVERY adapter must pass
     cases.ts                  the corpus: 14 cases + the paraphrase set, each
                               pinned at an explicit, non-null as-of
@@ -1146,3 +1160,162 @@ reference, and the async-only note above is one instance of why.
 
 **Rejected: DuckDB-WASM.** 142 MB unpacked for a 100,836-row dataset, and shipping a
 SQL engine to display SQL a non-technical user cannot read contradicts the thesis.
+
+## 11. The surface
+
+Landed by GA-10. What the user actually sees, and the decisions that constrain what a
+later increment may put there. `docs/design.md` §6 owns the *arrangement* — takeaway,
+chart, recipe sentence, provenance, with the persistent column holding recipes and the
+question box subordinate to the answer. This section is the technical half.
+
+### Tailwind v4 carries the theme, and the theme is the design system
+
+`shadcn init -b radix -p nova` writes a neutral greyscale house style into
+`src/app/globals.css`. It is replaced, not extended. `design-system/styles.css` is the
+version of record (invariant 14, "the theme is the approved look"), so every colour,
+radius, type step and duration in the app is one of its `--ga-*` tokens, declared once on
+`:root` and then **mapped onto the semantic names shadcn's components read** —
+`--primary` to `--ga-accent`, `--muted-foreground` to `--ga-ink-muted`, `--radius-4xl` to
+the pill the trust strip is drawn with. `@theme inline` re-exports both vocabularies as
+utilities, the design system's under a `ga-` prefix so a component says which one it is
+speaking.
+
+Two mappings are worth reading twice.
+
+**`--accent` is not the accent.** In the design system "accent" is the single strong
+emphasis colour; in shadcn it is the *quiet* ground a hovered or selected row sits on.
+They are mapped accordingly (`--accent` → `--ga-accent-soft`), and the strong colour is
+`--color-ga-accent`.
+
+**The `dark` variant is kept and never used.** `@custom-variant dark (&:is(.dark *))`
+re-points Tailwind's `dark:` at a class nothing sets. Deleting the line does not remove
+dark mode — it restores Tailwind v4's built-in `prefers-color-scheme` behaviour, and
+every `dark:` utility inside the shadcn components would then fire on a machine set to
+dark, repainting the approved look with greys that were never contrast-checked. There is
+one theme here, `color-scheme: light` says so, and the line is what holds it.
+
+**The mock's hex values are not the theme.** The interactive mock was drawn against
+`--accent:#5B45D6`; `design-system/README.md` records that landing the tokens moved the
+accent to `#0A6FD1` and `--ga-ink-muted` to `#655F7C`, because two measured contrast
+defects were fixed at the token definition. The surface inherits the fixes rather than the
+drawing.
+
+### Three components, each earned
+
+Invariant 14 says a shadcn component is added when a screen needs it. This screen took
+**card** (the takeaway and the chart panel), **button** (the rail's new-question control
+and the composer's starter-questions control) and **badge** (the trust strip's pills).
+Nine of the CLI's components were verified in §10 and are not installed.
+
+**The `<table>` is deliberately not shadcn's.** shadcn's table nests the `<table>` inside
+a scroll container — four utility classes' worth of styling, in exchange for a `<div>`
+between the figure and the one element this increment's accessibility claim rests on. It
+is written as plain semantic markup instead.
+
+**The starter chips are buttons, not cards.** They are activated, so they are `<button>`;
+the card look is styling. A `<div role="button">` would have to re-implement Enter, Space
+and the focus ring that `:focus-visible` already gives every control.
+
+### Observable Plot renders on the client, lazily
+
+Server-rendering Plot needs a DOM, which means jsdom, which §10 measured at ~755 ms of
+cold import — paid on every cold start, for no accessibility gain, because the accessible
+artifact is the `<table>` the server already produces. So `Plot.plot` is called only
+inside `"use client"` code, and the module is loaded with a dynamic `import()` inside the
+effect so it stays out of the page's first load. `tests/ui/surface-rules.test.ts` asserts
+both: every file calling `Plot.plot` carries the directive, and no file imports Plot at
+module scope.
+
+**The chart's form comes from the spec, not from the dataset.** A spec ordered by its
+measure is a ranking and renders as horizontal bars; a spec ordered by its breakdown is a
+sequence and renders as a line. The rule reads `spec.sort.by` and nothing else, so no
+dataset-specific knowledge lands in the surface (invariant 6).
+
+**The bar axis starts at zero, and the sequence is drawn with straight segments.** The top
+ten titles sit between 4.28 and 4.47, so a zero-based axis draws ten bars of nearly the
+same length — and that flatness is the finding. Truncating the axis to the data's range
+would read as a large difference where the numbers say a small one, which is this
+product's own failure mode drawn as a picture. For the same reason a sequence is not
+smoothed: a monotone spline draws values between two members that the engine never
+computed.
+
+**A breakdown member is ordinal even when it is spelled with digits.** The sequence chart
+sets `x.type: "point"` explicitly. `2018` is a declared member, not a quantity, and an
+inferred linear scale would place members at numeric distances the engine never claimed.
+
+### The accessible chart is a reachable table, not a hidden one
+
+`docs/design.md` §7 asks for a semantic `<table>` behind every chart, **reachable rather
+than merely present**. It is a native `<details>`/`<summary>` disclosure: a `<summary>`
+carries an implicit `button` role, is in the tab order, toggles from Enter and Space, and
+keeps working when the client bundle does not load. A visually-hidden copy is the
+forbidden shortcut — present in the accessibility tree and unreachable for everyone else —
+and `tests/ui/answer-card.test.tsx` asserts against `visibility:hidden`, `display:none`
+and `sr-only` inside the disclosure.
+
+The Plot SVG itself is `aria-hidden`. A Plot figure exposes dozens of tick labels and path
+elements that announce as a wall of disconnected numbers; the table announces the same
+figures once, with their row headers, in a form that carries their meaning.
+
+### `src/lib/intl.ts` is the only formatter on the surface
+
+Invariant 12 in one module. It exports `value`, `count`, `date` and `column`, memoised per
+locale, and `tests/ui/surface-rules.test.ts` proves the rule by reading the source: nothing
+under `app/`, `components/` or `lib/` constructs its own `Intl` formatter, and nothing
+anywhere calls `toFixed`, `toLocaleString` or `toPrecision`.
+
+**`column` writes a whole column to one width.** `Intl` drops trailing zeros, so a ranked
+list renders `4.47` and then `4.3`, and a precision that changes row by row reads as a
+defect in a face chosen for its tabular numerals. The digit count is taken from the widest
+value in that same answer and applied to all of them, capped at four. No precision is
+invented, and nothing is rounded here — the engine already rounded to the presentation
+scale (§5a).
+
+**Dates render in UTC.** Every instant in this product is ISO-8601 UTC (§2a), and an
+as-of of `2018-09-26T00:00:00.000Z` rendered in the reader's own zone names *25 September*
+anywhere west of Greenwich. An answer whose stated moment moves with the reader is a
+confident wrong answer wearing a timestamp, and it would also make the server and the
+client disagree on the first paint.
+
+**The declared alternative is a per-measure display format in the semantic layer**, which
+would state the presentation scale rather than infer it from the rows. That is a GA-03
+schema change and it is the next layer field this build wants; it is recorded rather than
+taken.
+
+### The zero state cannot show a computed result, structurally
+
+build-spec §1.2 forbids a score card, a metrics row, a sparkline or any standing tile, and
+permits exactly one thing: naming the data source. The permission is honoured by reading
+the compiled store's **manifest** — the ETL's own declaration of what it received — rather
+than by running a spec. `src/app/page.tsx` and `src/server/surface/zero-state.ts` import
+neither `engine/` nor `warehouse/`, which `tests/ui/surface-rules.test.ts` asserts, so the
+first paint has nothing to compute with. A second test enumerates every numeral in the
+rendered text.
+
+Each starter chip's second line — "average rating, by title" — is generated from the
+layer's declared labels. A hand-written caption and the spec it describes drift apart
+silently, which is this product's own failure mode pointed at its zero state.
+
+### What the shell owns, and what it does not
+
+`AskSurface` keeps one piece of state: the current answer. There is **no message list**,
+because §2 makes the spec the unit of conversational state and a transcript is a settled
+rejection. A second question aborts the first rather than racing it; two answers
+interleaving into one region is how a figure ends up under the wrong heading. Focus moves
+to the answer when it arrives, with `preventScroll`, so a keyboard user is taken to the
+takeaway rather than to the region's end.
+
+**The composer's free-text field is disabled, and says why on the control.** Under the §0
+cut there is no interpret call and there will not be one. `ai/fallback-parser.ts` reads
+declared vocabulary and refuses the rest by design, so a box accepting any sentence would
+promise a reading it cannot perform — the confident-answer failure this product exists to
+remove, pointed at its own input. `docs/design.md` §8 rejects a persistent no-key banner
+because it keeps charging for a fact the user has already taken in; a disabled control
+explaining itself is the control's own state, read once, where the user tries to act.
+
+**Provenance is inline, not a drawer.** GA-14 is deferred, so "How did you get this?" is a
+`<details>` listing the fields already on `resultSet.provenance`. Nothing is recomputed:
+the point of the block is that the numbers above it can be reproduced, and a provenance
+the surface assembled for itself would be a second account of the same run. It also means
+this increment ships no overlay, so the focus defect §10 records against the drawer
+primitive cannot apply to it.

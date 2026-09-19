@@ -1,6 +1,34 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 through GA-07 have landed.
+**Status: in progress.** GA-01 through GA-07 and GA-10 have landed. Six of the sixteen
+increments are **deferred rather than cancelled** — see §0, which is the first thing to read.
+
+## 0. The demo scope: the build stops after GA-11, at position 12
+
+**Decided 2026-09-19, during GA-10.** The sixteen increments below are the full v1 plan. The demo
+being built from them is shorter, and it ends at **position 12**:
+
+| In scope | Deferred (post-mvp) |
+| --- | --- |
+| GA-01 … GA-05 · GA-06 · GA-07 · **GA-10** · **GA-12** · **GA-11** | GA-08 · GA-09 · GA-13 · GA-14 · GA-15 · GA-16 |
+
+The reason is one fact about the dependency graph: **the app answers questions without a model.**
+GA-05 shipped a deterministic fallback parser that covers the starter questions, GA-07's route
+serves them with a templated takeaway, and every number on the screen comes from the engine on
+either path — invariant 1 guarantees that the model, when it exists, never produces a figure. So
+the three increments that make the product *visible* — the surface, the catch, and the recipe
+sentence — depend only on the route, not on GA-08's interpret call or GA-09's narrate call. The
+demo reaches its own hero moment with no API key and no provider dependency.
+
+What that costs is real and is stated here rather than discovered: free typing and follow-up
+amendments (GA-08, GA-09, GA-13) are the model's half of the product and do not ship; the
+provenance drawer and saved recipes (GA-14) do not ship, though GA-10 renders the provenance
+inline instead of dropping it; the accessibility *verification* pass (GA-15) does not run, so
+GA-10 builds its accessibility in and asserts it in `tests/ui/` rather than relying on a later
+audit; and the README and deploy gate (GA-16) are outstanding.
+
+**A reader who finds six unticked increments below has not found an abandoned build.** Each of the
+six is tracked as `post-mvp` on the issue tracker and its definition of done stands unchanged.
 
 ## What this document is
 
@@ -121,15 +149,19 @@ cross-reference. **Build in the `#` column's order, not in id order.**
 | 5 | GA-05 | Fallback parser, rejection path, eval harness | GA-03, GA-04 | M | flexible with GA-06 |
 | 6 | GA-06 | Proof suite: conformance, second adapter, replay, paraphrase | GA-04 | M | flexible with GA-05 |
 | 7 | GA-07 | The ask route and the answer object | GA-05 | S | locked |
-| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked |
-| 9 | GA-09 | Narrate, and amend | GA-07, GA-08 | M | locked |
+| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked · **deferred (§0)** |
+| 9 | GA-09 | Narrate, and amend | GA-07, GA-08 | M | locked · **deferred (§0)** |
 | 10 | GA-10 | The surface: shell, zero state, answer card | GA-07 | L | locked |
 | **11** | **GA-12** | **The catch** | GA-10 | M | **moved up one by C1** |
-| **12** | **GA-11** | **The recipe sentence** | GA-10 | M | **moved down one by C1** |
-| 13 | GA-13 | The amendment diff, and the degraded note | GA-09, GA-10 | M | locked |
-| 14 | GA-14 | Provenance, saved recipes, shareable answer | GA-13 | L | locked |
-| 15 | GA-15 | Accessibility verification and the determinism moment | GA-14 | M | locked |
-| 16 | GA-16 | README, deploy configuration, release gate | GA-15 | S | locked (last) |
+| **12** | **GA-11** | **The recipe sentence** | GA-10 | M | **moved down one by C1** · last in scope (§0) |
+| 13 | GA-13 | The amendment diff, and the degraded note | GA-09, GA-10 | M | locked · **deferred (§0)** |
+| 14 | GA-14 | Provenance, saved recipes, shareable answer | GA-13 | L | locked · **deferred (§0)** |
+| 15 | GA-15 | Accessibility verification and the determinism moment | GA-14 | M | locked · **deferred (§0)** |
+| 16 | GA-16 | README, deploy configuration, release gate | GA-15 | S | locked (last) · **deferred (§0)** |
+
+The demo's build order is therefore GA-01 … GA-07, then **GA-10, GA-12, GA-11**. GA-10 depends only
+on GA-07, and GA-12 and GA-11 depend only on GA-10, so nothing in that sequence reaches across the
+deferred increments — which is the dependency-column fact §0 rests on.
 
 Every increment leaves the repository with `npm test` green and `npm run build` passing.
 
@@ -423,7 +455,16 @@ not an instruction to keep code matching it.
 
 **Size** L — one full session, no slack · **Depends on** GA-07
 
-**Landed** — not yet.
+**Landed** 2026-09-19. Decisions recorded in `docs/how-this-was-built.md`, entries 48–53; the
+standing technical record is `docs/architecture.md` §11, with the layout addition in §1. From here
+this definition of done is a record of what was built, not an instruction to keep code matching it.
+
+Built under §0's cut, which changed two things about it. The provenance drawer GA-14 would have
+built is rendered **inline** behind a `<details>` instead, because the facts are on the answer
+object and the increment that would have styled them does not ship. And the composer is present but
+its free-text field is disabled with its reason stated on the control, because GA-08's interpret
+call does not ship and a box that accepted any sentence would be promising a reading it cannot
+perform.
 
 **Delivers.** `shadcn init` themed with **the approved mock's tokens rather than shadcn defaults**; the app shell (single ask column, persistent side column, bottom-anchored composer); the zero state (starter cards, promise line, dataset in the eyebrow as provenance); and the AnswerCard — takeaway, chart rendered **client-side**, the semantic `<table>` behind a “Show the numbers” disclosure, trust strip inline. `Intl` at every render site from the first component.
 
