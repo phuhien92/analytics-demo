@@ -297,8 +297,9 @@ keep code matching it.
 
 **Size** M — one session · **Depends on** GA-03, GA-04 · **Swappable with** GA-06
 
-**Landed** 2026-09-18. Decisions recorded in `docs/how-this-was-built.md` part four, entries
-38–43; the standing technical record is `docs/architecture.md` §8, §9 and §10. From here this
+**Landed** 2026-09-18 · [PR #23](https://github.com/phuhien92/analytics-demo/pull/23). Decisions
+recorded in `docs/how-this-was-built.md` part four, entries 38–43; the standing technical record
+is `docs/architecture.md` §8, §9 and §10. From here this
 definition of done is a record of what was built, not an instruction to keep code matching it.
 
 > **C5 settled: Confirm — GA-05, scored against a baseline** — A reading confirmed, not a change requested. See §6.
