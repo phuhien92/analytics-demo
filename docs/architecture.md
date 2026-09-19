@@ -94,14 +94,20 @@ src/
       read-payload.ts           the four CSVs read as one received payload
       build-store.ts            payload -> append-only log + derived indexes
       store.ts                  the store's shape, and its binary read/write
-    warehouse/                DATA ACCESS LAYER (swappable)
-      types.ts                  interface Warehouse { aggregate(spec) }
-      local-store.ts            typed-array adapter
+    warehouse/                DATA ACCESS LAYER (swappable); see section 5
+      types.ts                  interface Warehouse { aggregate(request) }, Aggregation
+      local-store.ts            typed-array adapter; the only module that knows
+                                what a measure means
     semantic/
       load.ts                 parse + validate semantic/*.json, fail fast
       guards/registry.ts      the four declared guards; no thresholds
-    engine/
-      execute.ts              QuerySpec -> ResultSet (pure, deterministic)
+    engine/                   PURE AND DETERMINISTIC; see section 5a
+      execute.ts              QuerySpec -> ResultSet: guards, ordering, limit,
+                              trust report, provenance, the double-run
+      numbers.ts              exact-rational compare, half-toward-zero rounding,
+                              code-unit string order
+      compare.ts              materiallyDifferent() and the comparison block
+      resolve.ts              loose input -> QuerySpec, or a Rejection
       amend.ts                SpecPatch -> QuerySpec
     ai/
       interpret.ts            question -> QuerySpec (structured output)
@@ -117,7 +123,7 @@ tests/
   contracts.test.ts           the core contracts hold their shape
   pinned-figures.test.ts      the pinned figures, as regression tests on the ETL
   semantic.test.ts            the layer loads, and a broken one does not
-  engine.test.ts
+  engine.test.ts              the engine: hero, replay, tie-break, determinism
   conformance/                spec -> expected numbers; EVERY adapter must pass
   evals/questions.jsonl       question -> expected-spec pairs
 ```
@@ -478,7 +484,10 @@ The boundary sits at **aggregation, not rows**:
 
 ```ts
 interface Warehouse {
-  aggregate(spec: QuerySpec): Promise<ResultSet>
+  readonly adapterId: string
+  readonly sourceId: string
+  latestAsOf(): Promise<string>
+  aggregate(request: { spec: QuerySpec; resolvedAsOf: string }): Promise<Aggregation>
 }
 ```
 
@@ -493,7 +502,164 @@ answered by the **conformance suite**: one set of spec → expected-numbers case
 every adapter must pass. It converts the weakness into the artifact that proves the
 central claim.
 
+### The adapter returns an `Aggregation`, and the engine composes the `ResultSet`
+
+Settled by GA-04. An adapter aggregates and stops there; guards, ordering, the limit, the
+trust report, provenance and the naive/honest comparison all belong to `engine/`.
+
+This is a determinism decision rather than a layering preference, and it follows from the
+paragraph above. Determinism depends on each adapter behaving identically, so **the less
+an adapter decides, the less can differ**. Had `aggregate` returned a finished `ResultSet`,
+every adapter would re-implement guard application, the ordering rule, materiality and the
+double-run, and the conformance suite would have to police all of it in each one. It
+returns the aggregated members instead, and everything downstream is written once.
+
+Its cost is real and accepted: an adapter returns every member rather than the top `limit`
+ones, because guards are applied above it and a member excluded by `min_evidence` has to
+exist before it can be excluded. That is bounded by dimension cardinality — 9,742 for
+`title`, the largest — and pushdown past ~1M rows is already on the deferred list in §1.
+
+### Exact integers cross the boundary; floats never do
+
+An `AggregatedMember` carries `numerator` and `denominator` as **integers**, not a computed
+average, plus `observations` and a stable `memberId`. `avg_rating` returns Σ hundredths
+over the rating count, and the engine performs the single division.
+
+Integer addition is exactly order-independent, so two adapters that visit the same ratings
+in a different order agree bit-for-bit. A floating-point sum does not carry that guarantee,
+and the disagreement would land in the last decimal — the silent difference this product
+claims to catch. It is also what makes the tie-break test meaningful: the shuffled-payload
+cases in `tests/engine.test.ts` change arrival order and every sum is unmoved.
+
+`memberId` is a **stable natural key from the source data** — the partner's `movieId` —
+never a storage position, because it is the final ordering discriminator and a storage
+position differs between adapters by definition.
+
+## 5a. The engine
+
+Pure functions in `src/server/engine/`. Every number the product shows is computed here
+(invariant 1), and nothing in it names a dataset: measures live in the adapter, guard
+behaviour in the registry, thresholds in the layer.
+
+### The ordering rule is `<measure> <dir>, <tieBreak> ASC, <memberId> ASC`
+
+Total, stated, and identical on every adapter. Each part earns its place:
+
+1. **The measure**, compared on the **exact rational by integer cross-multiplication** —
+   `a.numerator * b.denominator` against `b.numerator * a.denominator` — never on the
+   rounded value and never on a float. `ORDER BY AVG(rating) DESC` in any SQL warehouse
+   orders on the full-precision average, so the engine must too, or a SQL adapter and this
+   one disagree on rows that display the same number. Measured at `asOf 2007-08-02`:
+   Dr. Strangelove (19,100/43), Lawrence of Arabia (14,200/32) and Chinatown (13,750/31)
+   **all display 4.44**, and only full precision puts them in that order. Rounding first
+   would reorder them alphabetically and change which three appear above a `limit` of 3.
+2. **The tie-break**, required on every spec because 296 titles tie at exactly 5.00 (§2).
+   It is the member's own key when the tie-break dimension *is* the breakdown dimension;
+   otherwise the dimension is not a property of the member and the rule falls through.
+3. **The member's stable natural id**, which is what makes the order *total* rather than
+   usually-total. **A declared tie-break need not be unique**: five MovieLens title strings
+   are each shared by two different `movieId`s — `Emma (1996)`, `Saturn 3 (1980)`,
+   `Confessions of a Dangerous Mind (2002)`, `Eros (2004)` and `War of the Worlds (2005)`.
+   Without a third key the order within such a pair is whatever the adapter's iteration
+   produced, which is the one thing the conformance suite exists to make impossible.
+
+String comparison is by **UTF-16 code unit, never `localeCompare`**. The two disagree at
+the very first shipped title — code-unit order opens with `'Til There Was You (1997)` and
+ICU collation with `¡Three Amigos! (1986)` — and `localeCompare` depends on the runtime's
+ICU build and the ambient locale, so an answer would reorder itself across Node versions.
+Labels are locale-keyed and numbers go through `Intl` (§7); *ordering* is a reproducibility
+concern and is deliberately locale-free.
+
+### Rounding to the presentation scale is half toward zero, and it is stated
+
+*A Streetcar Named Desire* has 20 ratings summing to 8,950 hundredths — a mean of **exactly
+4.475**, sitting precisely on the boundary between two presentation steps. There is no
+arithmetically correct answer at two decimals; there is only a stated one. Four reasonable
+implementations were measured on that value:
+
+| Implementation | Result |
+| --- | --- |
+| `Math.round(sum / n)` — half up on hundredths | **4.48** |
+| `Intl.NumberFormat(2dp).format(mean)` | **4.48** |
+| `mean.toFixed(2)` | **4.47** |
+| `Math.round(mean * 100) / 100` | **4.47** |
+
+Four implementations, two answers, split two–two — the same shape of finding that made
+`tieBreak` a required field (§2), one layer further down. The pinned hero figure is **4.47**
+(`AGENTS.md`; `docs/design.md` §4), so `roundHalfTowardZero()` is what the engine states,
+and it states it in one named function rather than letting the number fall out of whichever
+formatter a later increment reaches for.
+
+The two `Intl` rows disagree for a reason worth knowing: ICU formats the *shortest decimal
+that round-trips* to the double, so it sees `4.475` and rounds half away from zero, while
+`toFixed` formats the actual binary value — `4.474999999999999644…` — and rounds down.
+**Invariant 12 is unaffected either way**, because rounding to the presentation scale
+happens in the engine, on integers, and `Intl` only ever formats an already-rounded value.
+A formatter is a rendering choice; this is an arithmetic one.
+
+### Guards are applied in spec order, and attribution follows it
+
+The engine iterates `spec.guards`, looks each id up in the registry and calls the
+`excludes` predicate the registry declares. **It never branches on a `GuardId`**, so a
+`minRatingsPerTitle`-shaped assumption cannot reach engine code one layer down from the
+core type that already forbids it (invariant 6).
+
+A member is attributed to the **first** guard that excludes it. That is stated rather than
+obvious: two guards can exclude the same member, and without an order the `excluded` counts
+in the trust report would depend on iteration order and stop being reproducible.
+
+Guards are **member-level** in v1: a predicate over `{ observations, uncategorised }`. An
+entity-level guard — excluding unrated titles from a *count* measure, rather than excluding
+members with no observations — is expressible in the same registry shape but is not built,
+because nothing in v1 asks for one.
+
+### The naive comparison is a double-run, not a flag
+
+`execute()` runs the spec, runs it again with `guards: []` through the same code path, and
+diffs. Nothing in the engine knows about ties, ratings or MovieLens; the hero moment appears
+because emptying the guards genuinely changes the answer, and it would appear on any dataset
+where that is true. A spec carrying no guards is its own naive run, so the comparison is
+skipped rather than computed against itself.
+
+`materiallyDifferent()` is the verdict, and the threshold is read from the layer (§3) so
+GA-12 tunes it as a data edit. Membership change in the top-`limit` rows is structural and
+needs no number; a shared member's value moving by at least `minValueDelta` needs one. A
+row whose value held while its `n` moved also counts — the number survived, the reason to
+believe it did not.
+
+### `resolveSpec()` returns a `Rejection`; it never throws
+
+Invariant 4's mechanism. An undeclared measure, dimension or guard — and a spec that fails
+schema validation — all return the same clarifying object, so the caller renders one shape
+whether the measure was undeclared or the limit was 10,000. A throw would be caught
+somewhere generic and rendered as an error, which is the product failing rather than the
+product working; showcasing refusal later (GA-05) is then a rendering change.
+
+It is also where `tieBreak` is filled from the layer's `defaultTieBreak`, before validation,
+so every spec reaching an adapter carries a total ordering rule — and where guards default
+to **on**, every guard the layer declares with its declared thresholds. An unguarded answer
+has to be asked for, and asking for one is what the comparison renders.
+
+### Coverage counts observations as the breakdown counts them
+
+A multi-valued breakdown counts one fact once per member it belongs to, on **both** sides of
+the coverage ratio, so the ratio stays coherent. The overlap itself is not removed — it is
+declared, by `disclose_multi_membership`, in the trust report's notes.
+
+Per C4, a breakdown a dimension cannot place reports the drop in `notes` rather than through
+a fifth guard: 13 undated titles carrying **18 of 100,836 ratings (0.018%)**, **none clearing
+`min_evidence ≥ 20`** — the largest carries 4. That measurement is the whole evidence base
+for C4 and is asserted in `tests/engine.test.ts`, so the next person to look at the undated
+titles neither re-measures them nor adds the guard C4 declined. The adapter reports it
+generically as "entities the breakdown could not place"; nothing in the engine knows what a
+release year is — and deliberately nothing in it knows they are *titles* either. A hardcoded
+"titles" in the note would be dataset-specific content inside the engine: invariant 6's leak
+arriving through a copy string rather than through a type. The neutral nouns it uses are a
+placeholder for layer-supplied, locale-keyed copy when GA-10/GA-11 style the trust strip.
+**The numbers are the disclosure; the wording is not yet final.**
+
 ## 6. AI usage
+
 
 `@anthropic-ai/sdk` on `claude-opus-5`.
 

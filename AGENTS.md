@@ -110,6 +110,9 @@ The central artifact (architecture §2). Every safety property falls out of its 
 | A silent no-API-key mode | Lets the user read a template summary as a narration |
 | A persistent no-API-key banner | Keeps charging for a fact already taken in; a one-time inline note on the first degraded answer instead |
 | `output_format` / assistant prefill | Deprecated; prefill returns 400 on Opus 5. Use structured outputs via `output_config.format` |
+| Rounding half up, or letting the formatter round | *A Streetcar Named Desire* averages **exactly 4.475** — a true midpoint. `Math.round` and `Intl` give 4.48; `toFixed` and `Math.round(v*100)` give 4.47. The engine rounds **half toward zero** at the presentation scale, so the pinned 4.47 is arithmetic, not an accident of the formatter (architecture §5a) |
+| Ordering on the rounded value | Three titles display 4.44 at the 2007 replay; only the exact rational ranks them as the build spec states, and it is what `ORDER BY AVG(...)` does |
+| `localeCompare` for ordering | Depends on the runtime's ICU build; disagrees with code-unit order at the very first shipped title |
 
 Out of scope for v1 (design §9): auth, multi-dataset upload, a visual chart editor,
 write-back, recommender modelling, dashboards or saved reports, and any real
@@ -157,7 +160,10 @@ asserted to be none — and its as-of (`2018-09-26T00:00:00.000Z`, the delivery'
 
 The hero moment (design §4) is `"What are our top rated titles?"`: 296 titles tied at
 5.00 naively, versus *A Streetcar Named Desire* 4.47 (n=20) and *The Shawshank
-Redemption* 4.43 (n=317) honestly. Keep it real, never contrived.
+Redemption* 4.43 (n=317) honestly. Keep it real, never contrived. 4.47 is **20 ratings
+summing to 8,950 hundredths — a mean of exactly 4.475**, rounded half toward zero; the
+ordering rule is `<measure> <dir>, <tieBreak> ASC, <memberId> ASC`, and `title` alone does
+not complete it because five title strings are each shared by two `movieId`s.
 
 ## Layout and stack
 

@@ -1226,6 +1226,191 @@ hardcoded threshold, a minified layer, an added synonym, a second locale, and ea
 three cross-file checks removed in turn. All thirteen cases fail when the thing they protect is
 removed, so none of them passes vacuously.
 
+## GA-04 — The deterministic engine and the local adapter
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 4 · decisions now standing in
+`docs/architecture.md` §5 and §5a
+
+This is the increment where the central claim stops being a claim. Everything the product
+ever shows is computed here, by pure functions, with no model anywhere near them — and the
+catch becomes real, as a generic double-run rather than a rule about this dataset.
+
+Three of the five decisions below were forced by measurement rather than chosen from a
+design space. Two of those contradicted what the plan assumed, and one of them is the most
+important thing this increment found.
+
+### 33. The adapter returns an `Aggregation`; the engine composes the `ResultSet`
+
+**Decided.** `aggregate()` returns aggregated members — integer `numerator`, `denominator`,
+`observations` and a stable `memberId`. Guards, ordering, the limit, the trust report,
+provenance and the naive/honest comparison all live in `engine/`.
+
+**Evidence.** `docs/architecture.md` §5 previously sketched `aggregate(spec): Promise<ResultSet>`,
+written in GA-01 before an engine existed. Taken literally it puts guard application, the
+ordering rule, materiality and the double-run inside **every** adapter. §5's own next
+paragraph says the cost of this boundary is that determinism depends on each adapter
+behaving identically — so the design that minimises what an adapter decides is the one that
+paragraph argues for. The conformance suite then has to police aggregation only, which is
+the sole part a `GROUP BY` genuinely does differently. Per `AGENTS.md` the doc changed first,
+with this rationale, and then the code.
+
+**Rejected.** Keeping the `ResultSet` signature and writing the trust report once in a shared
+helper each adapter calls. That is the same split with no way to enforce it: the second
+adapter that forgets to call the helper still compiles, still returns a valid `ResultSet`,
+and disagrees only in the trust report — which is the part no test reads as closely as the
+numbers.
+
+**Later would have cost.** GA-06 adds the second adapter. Discovering there that the trust
+report is adapter-owned means rewriting both adapters and the conformance suite in the
+increment whose job is to prove they agree.
+
+### 34. Ordering compares the exact rational, and only presentation rounds
+
+**Decided.** The ordering rule is `<measure> <dir>, <tieBreak> ASC, <memberId> ASC`. The
+measure is compared by **integer cross-multiplication** on `numerator/denominator`, never on
+the rounded value and never on a float.
+
+**Evidence.** The build spec's replay criterion asks for Shawshank 4.46 (n=149), Dr.
+Strangelove 4.44 (n=43), Lawrence of Arabia 4.44 (n=32) at `asOf 2007-08-02`. Measured, a
+fourth title sits in that range: **Chinatown (13,750/31) also displays 4.44**. Ordering on
+the rounded hundredth puts Chinatown *second* — ties resolve alphabetically and `C` precedes
+`D` — and the criterion's stated order becomes unreachable. Ordering on the exact rational
+reproduces the criterion exactly, with Chinatown fourth. It is also what every SQL warehouse
+does: `ORDER BY AVG(rating) DESC` orders on the full-precision average, so an engine that
+rounded first would disagree with its own future Postgres adapter.
+
+**Rejected.** Ordering on `rawValue`. It is simpler and it is what a careless implementation
+writes, and it silently changes which rows appear above a `limit`.
+
+**Later would have cost.** This is precisely the class of defect the conformance suite is
+built to catch — but only if the two adapters disagree. Both would have rounded first, both
+would have agreed, and the suite would have been green while the ranking was wrong.
+
+### 35. Rounding at a true midpoint is half toward zero, and it is stated
+
+**Decided.** `roundHalfTowardZero()` in `engine/numbers.ts`, in one named function, asserted
+in `tests/engine.test.ts` alongside the two implementations that disagree with it.
+
+**Evidence — and this is the increment's most important finding.** *A Streetcar Named Desire*
+has 20 ratings summing to 8,950 hundredths: a mean of **exactly 4.475**, sitting precisely on
+the boundary between two presentation steps. There is no arithmetically correct answer at two
+decimals. Four reasonable implementations were measured on that one value:
+
+| Implementation | Result |
+| --- | --- |
+| `Math.round(sum / n)` — half up on hundredths | **4.48** |
+| `Intl.NumberFormat(2dp).format(mean)` | **4.48** |
+| `mean.toFixed(2)` | **4.47** |
+| `Math.round(mean * 100) / 100` | **4.47** |
+
+Four implementations, two answers, split two–two. This is the same finding that made
+`tieBreak` a required field rather than an optional one (entry 23) — four implementations,
+three answers — recurring one layer further down, in rounding rather than in ordering. The
+pinned hero figure is **4.47**, so the engine rounds half toward zero and says so.
+
+The two `Intl`-based rows disagree for a reason worth recording: ICU formats the *shortest
+decimal that round-trips* to the double, so it sees `4.475` and rounds half away from zero,
+while `toFixed` formats the actual binary value — `4.474999999999999644…` — and rounds down.
+**Invariant 12 is not in tension with any of this**, because rounding to the presentation
+scale happens in the engine, on integers, and `Intl` only ever formats an already-rounded
+value. Had the rounding been left to the formatter, the hero figure would read 4.48 and the
+three pinned documents would have been wrong without anything failing.
+
+**Rejected.** Letting the presentation layer round. It is where rounding intuitively belongs,
+and it makes the hero number a property of whichever formatter GA-10 reaches for — changing
+with a locale option, and unreviewable from the engine's tests.
+
+**Later would have cost.** A number that differs from three documents, discovered when
+someone reads the rendered screen against `AGENTS.md`, with no failing test pointing at the
+cause.
+
+### 36. The declared tie-break is not unique, so the order ends in a stable natural key
+
+**Decided.** The ordering rule's final term is the member's `memberId` — the partner's
+`movieId` — never a storage position.
+
+**Evidence.** `tieBreak` is `title`, and **five shipped title strings are each shared by two
+different `movieId`s**: `Emma (1996)`, `Saturn 3 (1980)`, `Confessions of a Dangerous Mind
+(2002)`, `Eros (2004)` and `War of the Worlds (2005)`. A tie-break that is not unique is not
+a total order, so `<measure>, <tieBreak>` alone leaves the order within such a pair to
+whatever the adapter's iteration produced — which is the one thing the conformance suite
+exists to make impossible. The tie-break test shuffles the **payload**, so both title indexes
+and rating log positions move; an adapter discriminating on a storage position passes a
+reshuffle of one and fails the other.
+
+A second measurement belongs with it: string comparison is by **UTF-16 code unit, never
+`localeCompare`**. The two orderings disagree at the very first shipped title — code-unit
+order opens with `'Til There Was You (1997)`, ICU collation with `¡Three Amigos! (1986)` —
+and `localeCompare` depends on the runtime's ICU build and the ambient locale, so an answer
+would reorder itself across Node versions.
+
+**Rejected.** Treating `defaultTieBreak: "title"` as sufficient because it is unique *enough*.
+296 titles tie at 5.00 and only four are shown; the odds of a duplicated pair landing in a
+rendered top-`limit` are low, which is exactly what makes the defect expensive — it appears
+long after the code is trusted.
+
+**Later would have cost.** An intermittent conformance failure with no reproduction, on a
+suite whose entire purpose is being reproducible.
+
+### 37. Guard behaviour lives in the registry, so the engine never branches on a `GuardId`
+
+**Decided.** `GuardImplementation` gained an `excludes(subject, params)` predicate over a
+structural `{ observations, uncategorised }`. The engine iterates `spec.guards`, looks each
+id up and calls it.
+
+**Evidence.** Invariant 6 keeps dataset-specific assumptions out of the core types, and
+GA-01 already caught a `minRatingsPerTitle` field trying to get into one. The same assumption
+arrives by a second route: a `switch (guard.id)` in the engine is that field one layer down,
+with the type system no longer watching. The registry is where GA-03 already put "what the
+engine can actually do with a guard", so the predicate belongs beside the parameter names it
+already declares. `GuardSubject` is structural rather than an import of `AggregatedMember`,
+so a guard cannot reach for a dataset field lying next to it.
+
+Two rules came with it. Guards run **in spec order** and a member is attributed to the first
+guard that excludes it — two guards can exclude the same member, and without an order the
+trust report's `excluded` counts depend on iteration order and stop being reproducible. And
+guards are **member-level** in v1: an entity-level guard is expressible in the same shape but
+is not built, because nothing in v1 asks for one.
+
+**Rejected.** A `switch` in `execute.ts`. It is shorter and it reads fine, and it is how the
+portable contract acquires a MovieLens assumption without anyone deciding to put one there.
+
+**Later would have cost.** Each new dataset adding a branch to the engine — the failure mode
+invariant 6 is written to prevent, arriving through the one file nobody thought to guard.
+
+### What the increment also measured
+
+**296 titles tie at exactly 5.00** at `asOf 2018-09-25`, every one of them with two ratings or
+fewer, against *A Streetcar Named Desire* at 4.47 with n=20. The hero moment is produced by
+the generic double-run — the same spec, once with `guards: []`, diffed — and no code path
+mentions ties, ratings or this dataset.
+
+**296 exceeds `MAX_LIMIT`**, which is 120. The count is therefore asserted from the
+aggregation rather than from returned rows; a test that counted rows would have quietly
+asserted 120 and passed.
+
+**C4's evidence base is now executable.** 13 undated titles carrying **18 of 100,836 ratings
+(0.018%)**, the largest carrying **4** — so **none clears `min_evidence ≥ 20`**. The trust
+report's note states it on any date breakdown. The disclosure is written generically, as
+"entities the breakdown could not place" reported by the adapter; nothing in the engine knows
+what a release year is.
+
+**A first draft of that note said "13 titles carrying 18 of 100,836 ratings".** Both nouns are
+MovieLens, sitting inside the engine — invariant 6's leak arriving through a copy string rather
+than through a type, which is the one route the must-nots do not name. The wording is neutral
+now, and the nouns are deferred to layer-supplied locale-keyed copy when GA-10/GA-11 style the
+trust strip. The numbers are the disclosure; the wording is not yet final.
+
+**Integer sums are exactly order-independent, and that is load-bearing.** The tie-break test
+rebuilds the store from three seeded shuffles of the payload and every aggregate is unmoved.
+A float sum carries no such guarantee, which is the second reason — after cross-adapter
+agreement — that the store scales every measure to an integer.
+
+**A materiality case that is false was harder to find than one that is true.** `rating_count`
+by `rating_year` is the case where every member clears every guard, so emptying the guards
+changes nothing and `comparison` is `null`. Without one, "material" would have been asserted
+only in the direction that passes trivially.
+
 ---
 
 ## Keeping this current

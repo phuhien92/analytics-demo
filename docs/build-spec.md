@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01, GA-02 and GA-03 have landed; the remaining thirteen ticks below are empty.
+**Status: in progress.** GA-01 through GA-04 have landed; the remaining twelve ticks below are empty.
 
 ## What this document is
 
@@ -266,7 +266,10 @@ code matching it.
 
 **Size** L — one full session, no slack · **Depends on** GA-02, GA-03
 
-**Landed** — not yet.
+**Landed** 2026-09-18 · PR pending. Decisions recorded in `docs/how-this-was-built.md`
+part four, entries 33–37; the standing technical record is `docs/architecture.md` §5 and
+§5a. From here this definition of done is a record of what was built, not an instruction to
+keep code matching it.
 
 **Delivers.** `warehouse/types.ts` (`aggregate(spec)` plus `adapterId`) and `local-store.ts`; `engine/execute.ts` — pure, guards taken from the spec, ordering `<measure> <dir>, <tieBreak> ASC`, the `asOf` watermark filter, provenance and the trust report; `compare.ts`; `amend.ts`; `resolve.ts`.
 
@@ -733,7 +736,12 @@ settled by GA-02 and now standing in `docs/architecture.md` §2a, along with the
 that came with it: `asOf` is when the data arrived, `lastEventAt` is the latest event in it, and
 they are different facts. **The materiality threshold** — `minValueDelta: 0.01`, one global value in
 the layer rather than one per measure — settled by GA-03 and now standing in
-`docs/architecture.md` §3.
+`docs/architecture.md` §3. **The warehouse's return shape** — the adapter returns an `Aggregation`
+and the engine composes the `ResultSet`, so guards, ordering, the trust report and the double-run
+are written once — together with **the ordering rule** (`<measure> <dir>, <tieBreak> ASC,
+<memberId> ASC`, compared on the exact rational and by UTF-16 code unit) and **the rounding rule**
+(half toward zero at the presentation scale): all settled by GA-04 and now standing in
+`docs/architecture.md` §5 and §5a.
 
 ---
 
