@@ -1,7 +1,8 @@
 import { ArrowDownWideNarrow, TrendingUp } from "lucide-react";
 
-import type { DatasetProvenance, StarterCard } from "@/lib/view-model";
+import type { DatasetProvenance, InsightBriefing, StarterCard } from "@/lib/view-model";
 import { formatters } from "@/lib/intl";
+import { InsightBriefingBanner } from "@/components/insight-briefing";
 
 /**
  * The zero state: starter questions, and nothing that was computed for them.
@@ -12,30 +13,35 @@ import { formatters } from "@/lib/intl";
  * was considered during the UI direction and declined, so the space below the chips
  * stays empty until a question fills it.
  *
- * The one permitted exception is the eyebrow, and it is permitted because naming the
- * data source *is* provenance. `DatasetProvenance` explains why `100,836 ratings` is not
- * a metric: it is read off the compiled store's manifest — the ETL's declaration of what
- * it received — and no spec, guard or as-of resolution is involved in producing it.
+ * **Issue #27 exception (mock):** an AI insight banner may recommend a declared
+ * analysis. It is fixture copy, stub-labelled, and its CTA only fires the normal ask
+ * path — it does not display an engine result before a question in this session.
  *
- * Each chip carries what it is about to do, generated from the semantic layer's labels
- * (`server/surface/zero-state.ts`). Tapping one is reading a recipe, not firing an
- * unknown action — which is the same argument `docs/design.md` §3 makes for the recipe
- * sentence, one step earlier.
+ * The one permitted provenance line is the eyebrow: naming the data source. Each chip
+ * carries what it is about to do, generated from the semantic layer's labels.
  */
 
 export type ZeroStateProps = {
   readonly dataset: DatasetProvenance;
   readonly starters: readonly StarterCard[];
+  readonly insight: InsightBriefing;
   readonly locale: string;
   readonly onAsk: (question: string) => void;
   readonly busy: boolean;
 };
 
-export function ZeroState({ dataset, starters, locale, onAsk, busy }: ZeroStateProps) {
+export function ZeroState({ dataset, starters, insight, locale, onAsk, busy }: ZeroStateProps) {
   const format = formatters(locale);
 
   return (
     <div className="flex flex-col gap-8">
+      <InsightBriefingBanner
+        briefing={insight}
+        locale={locale}
+        onAsk={onAsk}
+        busy={busy}
+      />
+
       <div>
         <p className="ga-eyebrow">
           {dataset.sourceId} catalogue · {format.count(dataset.titles)} titles ·{" "}
