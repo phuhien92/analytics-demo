@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 through GA-05 have landed; the remaining eleven ticks below are empty.
+**Status: in progress.** GA-01 through GA-07 have landed.
 
 ## What this document is
 
@@ -85,7 +85,7 @@ reading the code.
 ### The proof suite
 
 13. `npx vitest run tests/conformance` passes the **same case list on two different adapters**
-    (typed arrays and SQLite), every case carrying an explicit, non-null `asOf`.
+    (typed arrays and Postgres), every case carrying an explicit, non-null `asOf`.
 14. A case pinned at `asOf 2007-08-02` still passes against the full 2018 store — the as-of replay.
 15. N phrasings of one question produce one byte-identical `ResultSet`.
 16. The six pinned figures pass, each asserted **with its definition, its guards in effect and its
@@ -324,9 +324,20 @@ definition of done is a record of what was built, not an instruction to keep cod
 
 **Size** M — one session · **Depends on** GA-04 · **Swappable with** GA-05
 
-**Landed** — not yet.
+**Landed** 2026-09-18 · PR — see `docs/how-this-was-built.md` part three, GA-06. Decisions recorded
+there as entries 48–52; the standing technical record is `docs/architecture.md` §5b. From here this
+definition of done is a record of what was built, not an instruction to keep code matching it.
 
-**Delivers.** `tests/conformance/cases.ts` (spec with explicit `asOf` → expected numbers); `suite.test.ts` as `describe.each(adapters)`; `warehouse/sqlite-store.ts` as the CI-only second adapter; the as-of replay case; and the paraphrase set.
+> **The second adapter is Postgres, not SQLite** — decided by the captain during the increment and
+> authoritative over the line below, which was stale before the work started. The delivered file is
+> `warehouse/postgres-store.ts`, and every "SQLite" in this document has been corrected to match.
+> The reasoning: the plan already required a second adapter, so this is the same work in the same
+> place — and it turns "there is a swappable seam" into "two entirely different engines produce
+> byte-identical numbers from the same portable query description", which is the claim no competitor
+> in `market-research.md` is making. The adapter is still a test artifact: no database enters the
+> serving path, the deployed bundle or the demo's setup, and invariant 13 is untouched.
+
+**Delivers.** `tests/conformance/cases.ts` (spec with explicit `asOf` → expected numbers); `suite.test.ts` as `describe.each(adapters)`; `warehouse/postgres-store.ts` as the test-only second adapter; the as-of replay case; and the paraphrase set.
 
 **Done when.**
 - `npx vitest run tests/conformance` → **the same case list passes under two describe blocks, one per adapter**.
@@ -337,7 +348,7 @@ definition of done is a record of what was built, not an instruction to keep cod
 
 **Must not.**
 - Write an expectation only one adapter can meet.
-- Let the SQLite adapter reach the serving path or the deployed bundle.
+- Let the Postgres adapter reach the serving path or the deployed bundle.
 - Use `asOf: null` in any case. An unpinned case expires the moment the next payload lands, and this corpus is the artifact behind the product's central claim.
 - **Skip the second adapter because one passes.** The seam is real if a second adapter passes the same suite through it; without that it is decoration.
 
@@ -554,7 +565,7 @@ not an instruction to keep code matching it.
 
 **Done when.**
 - `npm test` from a clean clone with no key → green, with the live-only suites reported **skipped, not passed**.
-- `npm run build` succeeds and the SQLite adapter is absent from the bundle.
+- `npm run build` succeeds and the Postgres adapter is absent from the bundle.
 - The README contains all four required sections.
 - `grep -rin "verified" README.md src/ semantic/` → no matches.
 - Recorded: the deploy configuration values and why. *Otherwise this increment decides nothing new; it assembles — say so.*
@@ -562,7 +573,7 @@ not an instruction to keep code matching it.
 **Must not.**
 - Use the word “verified” anywhere user-facing.
 - Report skipped live suites as passing.
-- Ship the SQLite adapter into the deployed bundle.
+- Ship the Postgres adapter into the deployed bundle.
 
 ---
 
@@ -617,7 +628,7 @@ expensive to retrofit. **Low confidence:** nothing turns on it. If the captain p
 name, keep the doc's name.
 
 **c. Additional files inside directories §5 already names** — `engine/compare.ts`,
-`engine/resolve.ts`, `warehouse/sqlite-store.ts`, `tests/pinned-figures.test.ts`,
+`engine/resolve.ts`, `warehouse/postgres-store.ts`, `tests/pinned-figures.test.ts`,
 `tests/semantic.test.ts`, `tests/rejection.test.ts`, `tests/ui/`, `tests/ai/`. Not layout changes;
 §5's own comment on `warehouse/` is "(swappable)", which the second adapter is the point of.
 
@@ -728,10 +739,7 @@ What changed in the spec:
 Open choices, each with a recommendation. **This list empties as the build proceeds:** as each is
 settled it moves to `docs/architecture.md` and leaves this file.
 
-1. **SQLite driver:** `node:sqlite` (which still prints an `ExperimentalWarning` on Node 22),
-   CI-only, warning suppressed in the test runner. `better-sqlite3` adds a native build to a project
-   whose selling point is a zero-config `npm install`.
-2. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
+1. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
 
 **Settled and migrated out.** `MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
@@ -763,7 +771,10 @@ substitutes into), **`Answer.provenance` on both branches** (the four facts a re
 honestly state, projected from `resultSet.provenance` on the success branch), **the refusal
 served at HTTP 200 with faults kept apart as 400 and 500**, and **`AskRequest` as
 `{ question, locale, asOf }`** — the request carries the as-of: all settled by GA-07 and now
-standing in `docs/architecture.md` §6a.
+standing in `docs/architecture.md` §6a. **The second adapter and its driver** — the choice that stood
+here as "SQLite driver", replaced by the captain's decision to make the second adapter Postgres and
+then settled as `pg` against any server a connection string names, with no embedded engine and no
+container: settled by GA-06 and now standing in `docs/architecture.md` §5b.
 
 ---
 

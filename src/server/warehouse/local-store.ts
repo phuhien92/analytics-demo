@@ -251,8 +251,24 @@ export class LocalStoreWarehouse implements Warehouse {
     const needsTitles = spec.measure === "title_count";
 
     const members = new Map<string, Accumulator>();
+    /**
+     * A member is identified by **its label *and* its stable natural id**, never by the
+     * label alone.
+     *
+     * Found by the Postgres adapter in GA-06: keyed on the label, the five MovieLens title
+     * strings that two different `movieId`s share collapsed into one member each, so the
+     * store reported 9,737 titles where it holds 9,742 and pooled two films' ratings under
+     * one row. `GROUP BY name, movie_id` in the second adapter kept them apart and the two
+     * engines disagreed — which is the whole reason a second adapter exists.
+     *
+     * It is also the same fact `engine/execute.ts` already relies on: the ordering rule ends
+     * in `memberId ASC` *because* the declared tie-break is not unique. An adapter that then
+     * merges on the tie-break undoes the distinction one layer down, and merging two entities
+     * the source keeps apart is silent coercion — the failure mode invariant 4 exists to
+     * remove, arriving through a `Map` key.
+     */
     const ensure = (key: string | null, memberId: number, uncategorised: boolean): Accumulator => {
-      const mapKey = key ?? "\u0000:total";
+      const mapKey = `${memberId}\u0000${key ?? ""}`;
       let existing = members.get(mapKey);
       if (existing === undefined) {
         existing = emptyAccumulator(key, memberId, uncategorised);

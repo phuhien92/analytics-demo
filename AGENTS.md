@@ -112,10 +112,13 @@ The central artifact (architecture §2). Every safety property falls out of its 
 | `output_format` / assistant prefill | Deprecated; prefill returns 400 on Opus 5. Use structured outputs via `output_config.format` |
 | Rounding half up, or letting the formatter round | *A Streetcar Named Desire* averages **exactly 4.475** — a true midpoint. `Math.round` and `Intl` give 4.48; `toFixed` and `Math.round(v*100)` give 4.47. The engine rounds **half toward zero** at the presentation scale, so the pinned 4.47 is arithmetic, not an accident of the formatter (architecture §5a) |
 | Ordering on the rounded value | Three titles display 4.44 at the 2007 replay; only the exact rational ranks them as the build spec states, and it is what `ORDER BY AVG(...)` does |
-| `localeCompare` for ordering | Depends on the runtime's ICU build; disagrees with code-unit order at the very first shipped title |
+| `localeCompare` for ordering | Depends on the runtime's ICU build; disagrees with code-unit order at the very first shipped title — and GA-06 reproduced the same disagreement from a *database* collation, which is the form it takes once a second engine exists |
 | A `takeaway: string` field on the answer | A field-to-stream change is a change of *response kind* — content type, the client's fetch handling, component state, every test — so GA-09 would rewrite four surfaces. Narration streams from GA-07's first commit; the answer object holds only the slot, `{ producer, locale }` (architecture §6a) |
 | Server-Sent Events for the answer stream | The question travels in a body, so this is a POST and `EventSource` is GET-only — a client uses `fetch` and a reader either way. Its reconnect semantics would resume a stream whose provenance says otherwise. NDJSON, fixed frame order: `answer`, narration deltas, `end` |
 | A 4xx for a question the layer cannot answer | It was processed; the clarifying question *is* the answer. A status code cannot carry `nearest`, so GA-11's showcase of refusal would be a rebuild rather than a rendering. Refusals are 200; a malformed body is 400 and a broken deployment is 500 |
+| SQLite as the conformance suite's second adapter | Superseded by a captain decision in GA-06: Postgres is what a real deployment is pointed at, so two engines agreeing exactly is a stronger claim than a seam existing. `docs/build-spec.md`'s `sqlite-store.ts` line was stale and is corrected |
+| An embedded or containerised Postgres for the suite | Docker is not present on every machine and an embedded engine would make the loud-skip path dead code — the suite would always appear to prove two adapters. One connection string, any Postgres (architecture §5b) |
+| Keying an aggregated member on its label alone | Five title strings are each shared by two `movieId`s, so it merges entities the source keeps apart — 9,737 members against 9,742 declared titles. Found by the second adapter in GA-06; the key is `(memberId, key)` |
 
 Out of scope for v1 (design §9): auth, multi-dataset upload, a visual chart editor,
 write-back, recommender modelling, dashboards or saved reports, and any real
@@ -180,6 +183,11 @@ carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
 (assembly, status codes, frame order, the stream), so the whole HTTP surface is testable
 with an injected warehouse — no compiled `.store/`, no server.
 
+`tests/conformance/` compiles its store in memory from `data/`, so it runs on a clean
+clone without `npm run ingest` — and both adapters start from the same `Store`, so a
+disagreement between them can only be between two aggregation implementations and never
+between two ETLs.
+
 `npm run ingest` compiles the received payload into `.store/` — a build artifact,
 never committed. It runs on Node's native TypeScript stripping, so every relative
 import under `scripts/` and `src/server/ingest/` carries an explicit `.ts`
@@ -229,6 +237,20 @@ an eval set of question → expected-spec pairs including amendment cases,
 rejection tests proving undeclared questions produce a clarifying question, and
 an automated axe pass plus a manual keyboard-only run through ask → amend →
 provenance drawer.
+
+**The conformance suite runs two adapters**, and `CONFORMANCE_DATABASE_URL` is the one
+variable that decides whether the second one runs (architecture §5b). Set and working:
+both run and must agree exactly. Set and unreachable: **failure** — never a skip, because
+a suite that downgrades a broken connection goes green on the first outage and never goes
+red again. Unset: a **loud skip** naming the consequence, that the determinism claim is
+unproven on that run. `src/server/warehouse/postgres-store.ts` is a test artifact: nothing
+under `src/` imports it, it holds no driver, and `pg` is a devDependency — asserted in
+`tests/conformance/corpus.test.ts`, because invariant 13 depends on all three.
+
+**No conformance case may carry `asOf: null`.** A case pinned at "latest" does not fail
+when the next payload lands; it passes against different data. Each case also writes out
+its guards in full and pins its whole trust report, for the same reason a pinned figure
+carries its definition.
 
 ## README requirements
 

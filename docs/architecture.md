@@ -99,6 +99,8 @@ src/
       types.ts                  interface Warehouse { aggregate(request) }, Aggregation
       local-store.ts            typed-array adapter; the only module that knows
                                 what a measure means
+      postgres-store.ts         the same spec compiled to SQL; TEST ONLY — nothing
+                                under src/ imports it, and it holds no driver
     semantic/
       load.ts                 parse + validate semantic/*.json, fail fast
       guards/registry.ts      the four declared guards; no thresholds
@@ -130,6 +132,13 @@ tests/
   engine.test.ts              the engine: hero, replay, tie-break, determinism
   ask-route.test.ts           the route: refusal at 200, provenance, the stream
   conformance/                spec -> expected numbers; EVERY adapter must pass
+    cases.ts                  the corpus: 14 cases + the paraphrase set, each
+                              pinned at an explicit, non-null as-of
+    adapters.ts               the adapters under test; skip loudly or fail loudly
+    postgres-fixture.ts       connect, load, and report the server's own version
+    suite.test.ts             describe.each(adapters), plus the divergences
+    corpus.test.ts            lints: no null as-of, and the adapter stays out of
+                              the serving path. Needs no database.
   evals/questions.jsonl       question -> expected-spec pairs
 ```
 
@@ -540,6 +549,25 @@ cases in `tests/engine.test.ts` change arrival order and every sum is unmoved.
 never a storage position, because it is the final ordering discriminator and a storage
 position differs between adapters by definition.
 
+### A member is identified by its label *and* its `memberId`
+
+Settled by GA-06, and found by the second adapter rather than reasoned out. An adapter that
+groups on the label alone merges entities the source keeps apart: five MovieLens title
+strings are each shared by two different `movieId`s, so the local adapter reported **9,737
+members where the store declares 9,742 titles**, and pooled two films' ratings under one row.
+`GROUP BY name, movie_id` in the Postgres adapter kept them apart, the two engines disagreed,
+and the local adapter was wrong.
+
+It is the same fact the ordering rule already rests on — the rule ends in `memberId ASC`
+*because* the declared tie-break is not unique (§5a) — so an adapter that merges on the
+tie-break undoes one layer down what the ordering rule established. Merging two entities the
+source distinguishes is silent coercion, which is what invariant 4 exists to remove; here it
+arrived through a `Map` key rather than through a type.
+
+The hero rows were unaffected, which is the point worth keeping: the defect moved coverage
+counts and pooled five pairs of titles, and no test that existed could see it, because a
+single adapter agreeing with itself cannot.
+
 ## 5a. The engine
 
 Pure functions in `src/server/engine/`. Every number the product shows is computed here
@@ -662,6 +690,76 @@ release year is — and deliberately nothing in it knows they are *titles* eithe
 arriving through a copy string rather than through a type. The neutral nouns it uses are a
 placeholder for layer-supplied, locale-keyed copy when GA-10/GA-11 style the trust strip.
 **The numbers are the disclosure; the wording is not yet final.**
+
+## 5b. The second adapter, and what running two of them proved
+
+The conformance suite runs the same corpus through **two independent implementations of
+aggregation**: the in-process typed-array adapter that serves the application, and
+`warehouse/postgres-store.ts`, which compiles the same `QuerySpec` to SQL. Determinism across
+adapters is the cost of a swappable warehouse (§5); this is what converts that cost into the
+artifact that proves the promise.
+
+**Postgres, not SQLite.** The build spec named SQLite; the captain changed it during GA-06.
+The work is the same work in the same place, and Postgres is what a real deployment would
+actually be pointed at — which turns "there is a swappable seam" into "two entirely different
+engines produce byte-identical numbers from the same portable query description".
+
+**It is a test artifact.** No database enters the serving path, the deployed bundle or the
+demo's setup, and invariant 13 is untouched: a clean clone still runs with no key and nothing
+to install. `tests/conformance/corpus.test.ts` asserts all of it — that nothing under `src/`
+imports the adapter, that the adapter imports nothing but `contracts` and its own sibling
+types (no driver, no `node:*`), and that `pg` and `pg-copy-streams` are devDependencies.
+
+**One environment variable, any Postgres.** `CONFORMANCE_DATABASE_URL` holds a connection
+string and nothing else decides anything — a local server, a Supabase project or any other
+Postgres are the same case, because Supabase *is* Postgres. TLS, port and credentials are
+already expressible in the string, so there is no mode flag and no branch in the adapter.
+
+**Three outcomes, none of them quiet.** Set and working: both adapters run and must agree
+exactly. Set and unreachable: **failure**, because the operator asked for the second adapter
+and did not get it, and a suite that downgrades a broken connection to "skipped" goes green on
+the first outage and never goes red again. Unset: a **loud skip** that names the consequence —
+the determinism claim is unproven on that run. The banner is written straight to file
+descriptor 1, because Vitest's reporter drops `console` output from passing files when stdout
+is not a terminal, and a loud skip that is loud only on a developer's machine is the quiet
+pass GA-06's own "must not" forbids.
+
+**The suite reports which server it agreed with**, read from `SELECT version()` rather than
+from configuration. Collation and ordering semantics differ across Postgres majors, so a
+conformance suite whose job is proving two engines agree has to be able to say which engine,
+or a later divergence is unattributable.
+
+### Where two engines actually diverge
+
+Each of these was measured during GA-06 and each is kept executable in
+`tests/conformance/suite.test.ts`, running the wrong expression beside the pinned one.
+
+- **The session time zone is inherited, not neutral.** `EXTRACT(YEAR FROM to_timestamp(at))`
+  renders in the session's `TimeZone`, which Postgres takes from its host — a freshly
+  initialised cluster on this machine chose `America/Los_Angeles`. A rating an hour either
+  side of a UTC new year then lands in the wrong year with no error anywhere. The adapter
+  pins `AT TIME ZONE 'UTC'`, and the suite runs the **entire** Postgres corpus under
+  `Pacific/Kiritimati` (UTC+14) so the pinning is proved rather than trusted.
+- **Collation is the database's, not the engine's.** Ordering `'Til There Was You (1997)`
+  against `¡Three Amigos! (1986)` under `und-x-icu` reverses UTF-16 code-unit order — the
+  same disagreement `AGENTS.md` already records for `localeCompare`, now arriving from a
+  database instead of a runtime. It cannot reach a result **because the adapter never
+  orders**: §5's split is what makes collation unable to change an answer.
+- **`SUM()` over no rows is NULL, not zero.** A member enumerated from the dimension and
+  matched by nothing — the eighteen titles nobody rated — returns a null numerator without
+  `COALESCE`, where the typed-array loop returns 0.
+- **The uncategorised sentinel is unrepresentable in SQL.** `UNCATEGORISED_KEY` begins with
+  U+0000 and Postgres `text` cannot hold a NUL byte. It is reconstructed in JS from the
+  `uncategorised` flag the boundary already carries — which is the field
+  `exclude_uncategorised` actually reads. Had the guard keyed on the string, the second
+  adapter could not have implemented it at all.
+- **Counts arrive as `bigint`.** `pg` hands int8 back as a string, other drivers as a number
+  or a `BigInt`. The adapter converts in one stated place and refuses anything outside the
+  safe integer range, rather than trusting whichever choice a driver made.
+- **Filter comparisons are type-strict on one side only.** The local adapter compares with
+  `===` and requires both sides to be numbers for `gte`, `lte` and `between`; Postgres will
+  happily compare text with `>=` under its collation. The SQL adapter emits `FALSE` for a
+  comparison the local adapter refuses, so the two disagree on no filter.
 
 ## 6. AI usage
 
@@ -914,7 +1012,15 @@ offer.
   **19 shipped against the 38 a naive unstripped parse produces**.
 - **Conformance suite** — spec → expected-numbers cases that every `Warehouse` adapter
   must pass. This is what makes the determinism claim survive a second adapter, and it
-  is the artifact that proves the product's central promise.
+  is the artifact that proves the product's central promise. Fourteen cases, pinned at
+  three explicit as-of points, each carrying its guards in full and its whole trust
+  report, plus a five-phrasing paraphrase set. Three cases take their numbers from
+  `docs/build-spec.md`, written before any code produced them; the rest are regression
+  pins whose independent check is the second adapter reproducing them. A lint test
+  asserts no case carries `asOf: null` — a case pinned at "latest" does not fail when
+  the next payload lands, it passes against different data, which is this product's own
+  failure mode aimed at its own proof. The second adapter is Postgres, addressed by one
+  connection string; see §5b for the three outcomes and what each means.
 - **Eval set** of question → expected-spec pairs, including amendment cases
   (spec + follow-up → expected patch). Anthropic's reported lesson was that evals, not
   model choice, drove accuracy. `tests/evals/questions.jsonl`, run by `npm run eval`.
@@ -979,6 +1085,12 @@ with no resolver of its own. It is ~30 lines on `module.registerHooks`, loaded b
 relative specifier, and deferring everything else to Node. It adds no dependency and no
 build step, which is the point: `tsx` or `ts-node` would break the zero-config
 `npm install` this project is sold on, for a script that runs in under a second.
+
+**The conformance driver is a devDependency and nothing else is.** `pg` 8.23.0,
+`pg-copy-streams` 6.0.6 and their types exist for `tests/conformance/` alone; the
+application has no database and ships none. `tests/conformance/corpus.test.ts` asserts
+they are absent from `dependencies`, and `next build` produces a bundle with no trace of
+the adapter or the driver.
 
 **Versions are pinned exactly, not by range**, so a clean clone resolves what was
 verified: React 19.2.8 (the version the shadcn verification below ran against, and what
