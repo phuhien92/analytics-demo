@@ -1604,6 +1604,183 @@ exists to argue against. The change moves in the safe direction, further above t
 §7), and vocabulary is what decides whether a question reaches a measure. A synonym addition is a
 layer change even though no measure, dimension or guard moved.
 
+## GA-07 — The ask route and the answer object
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 7 · decisions now standing in
+`docs/architecture.md` §6a
+
+This is the seam between everything built so far and everything still to come, and it is
+the first increment whose output a person will eventually see — so the shape of the answer
+object is the shape of the product. Almost every decision below is about a *later*
+increment: whether GA-08 substitutes an interpreter or restructures a route, whether GA-09
+fills a slot or changes a response kind, whether GA-11 renders a refusal or rebuilds the
+path to one. Nothing here is a model call, and there is no key; that cost the increment
+nothing, because the provider question does not reach this layer.
+
+### 44. Narration streams from the first commit, while the only producer is a template
+
+**Decided.** The answer object carries `narration: { producer, locale }` and never the
+text. The takeaway arrives as its own frames on the same response: an `answer` frame, then
+zero or more `narration` deltas, then `end`. The degraded template is a single chunk.
+`ai/narrate-template.ts` declares the `NarrationProducer` type —
+`(ResultSet, SemanticLayer, locale) => AsyncIterable<string>` — that GA-09's model
+producer will also satisfy.
+
+**Evidence.** Build-spec §5.1 names this the single most expensive shortcut available in
+the whole plan, and the cost is specific rather than rhetorical: a JSON string field is not
+one field to change later, it is a change of *response kind*. `Content-Type` moves from
+`application/json` to a stream type; the client moves from `await res.json()` to a reader
+loop; component state moves from a value to an accumulating buffer; and every test that
+read the field is rewritten. Four surfaces, for a field that was always going to stream.
+
+The second argument was not in the plan and is the better one. Because the complete answer
+object is written **before any prose**, streaming makes invariant 1 a property of the wire
+format rather than a promise about the prompt: the numbers reach the screen before a
+narrator says anything about them, so there is no arrangement in which a figure originates
+in the narration. That ordering is free here and unobtainable from a JSON body, where the
+prose and the figures arrive in the same object and only convention says which came first.
+
+**Rejected: a `takeaway: string` field, filled by a template now and a model later.** It
+is the shape that reads as obviously simpler for exactly as long as the producer is a
+template.
+
+**Rejected: Server-Sent Events.** The question travels in a body, so this is a POST, and
+`EventSource` is GET-only — a browser client uses `fetch` and a stream reader either way,
+which is SSE's whole ergonomic advantage gone. Its framing then costs parsing for nothing,
+and its reconnect semantics are actively wrong: a dropped connection must be re-asked as a
+fresh request with its own `requestId`, never silently resumed into an answer whose
+provenance says otherwise. NDJSON, one JSON value per line, is what `curl -N` shows
+legibly and what a `TextDecoder` and a line split read.
+
+**Rejected: closing the stream as the end signal.** An `end` frame costs one line and is
+the only way a reader can tell a finished narration from a connection that died
+mid-sentence — a distinction that becomes real in GA-09, where a model writes the prose.
+
+**Cost of deciding later.** GA-09 rewrites the route, the answer schema, the frame reader
+and every component that reads a takeaway, in the same increment that first introduces a
+streaming model call — so the streaming bugs and the restructuring would land together,
+with nothing known-good to bisect against.
+
+### 45. Every answer states its provenance, and a refusal states it too
+
+**Decided.** `Answer` carries a top-level `provenance` on **both** branches of the union:
+`requestId`, `adapterId`, `layerVersion`, `resolvedAsOf`. It is deliberately smaller than
+`Provenance`, and on the success branch it is a projection of `resultSet.provenance` taken
+by one function, `answerProvenance()`.
+
+**Evidence.** Reproducibility is this product's central claim rather than a nicety, and
+the rejection branch as GA-01 shipped it carried only `requestId` and `degraded` — so a
+refusal could not say which layer version refused or at which moment. That is the branch
+where it matters most: a user who asks the same question twice and is refused once is
+looking at exactly the kind of unexplained difference this product exists to remove. The
+as-of is therefore resolved **once, up front, before interpretation**, so the refusal
+branch states the same moment the success branch would have used.
+
+**Rejected: putting the full `Provenance` on both branches.** It carries `engineVersion`
+and `computedAt`, which describe a computation a refusal never ran. Filling them anyway
+would be a small lie in the one place this product cannot afford one — and the whole
+argument of invariant 5 is that a partial guarantee stated as a whole one reproduces the
+failure being criticised.
+
+**Rejected: spreading the `ResultSet` across the answer to avoid duplicating provenance.**
+The build spec lists the answer's contents flat, and spreading would have removed the
+duplication outright. But the `ResultSet` is the artifact the conformance suite pins and a
+saved recipe re-runs, and carrying it whole is the strongest available statement that the
+route did not touch the numbers. The duplication is four fields with one derivation, and
+`tests/ask-route.test.ts` asserts the projection field by field against the engine's own
+record.
+
+**Cost of deciding later.** GA-14 builds the provenance drawer over `requestId`,
+`adapterId`, `layerVersion` and `resolvedAsOf`. A drawer that worked on answers and went
+blank on refusals would be found there, four increments after the shape was set, with
+GA-11's refusal rendering already built on top of it.
+
+### 46. The refusal is served at 200; a fault is a status code
+
+**Decided.** A question the semantic layer cannot answer returns HTTP 200 carrying
+`ok: false` with its clarifying question and its concrete options intact. A malformed body
+is 400 and a broken deployment is 500, both carrying the `requestId`.
+
+**Evidence.** GA-05 made the rejection a returned value precisely so it could be rendered
+rather than caught, and serving it as a 4xx would undo that one layer out: the surface
+would have to reconstruct the clarification from a status code, and GA-11's showcase of
+refusal-as-a-feature would be a rebuild instead of a rendering. Asserted on the status and
+the content **together** — a test that only checked the body would pass against a route
+serving this at 422.
+
+Keeping faults visibly apart is what stops that from collapsing into "everything is 200".
+A body with no `question` is not a clarifying question, because nothing was asked in a form
+that could be clarified; there is no `nearest` to offer and no `asked` to echo.
+
+**Rejected: a 422 for the rejection, on the reading that the request was unprocessable.**
+It was processed. The product's answer to that question is the clarifying question, and
+that answer is a success.
+
+**Cost of deciding later.** GA-11 renders the refusal. Moving it from a 4xx to a 200 at
+that point changes the route, the client's error path and the component boundary in the
+increment that is supposed to be a rendering.
+
+### 47. The route assembles, and the assembly is testable without a store or a server
+
+**Decided.** `route.ts` holds only the composition root — the `.store/` read, the layer
+load, the process singletons, `POST`. The assembly, the status codes, the frame order and
+the stream are in `answer.ts` beside it, behind an injected `AskDependencies`.
+
+**Evidence.** Everything the route's done-criteria assert is HTTP behaviour: a status, a
+header, a frame order, two responses agreeing. Reaching that through a real server would
+have made the suite need a compiled `.store/` and a spawned process, when no other test in
+the build needs either — `tests/rejection.test.ts` and the rest build a warehouse from
+`data/` in memory. With the dependencies injected, `tests/ask-route.test.ts` drives the
+same `askResponse` the route serves and asserts on a real `Response` object, and the
+`curl` runs against `next dev` then confirm the same four criteria over the wire rather
+than standing in for them.
+
+It also puts the model's arrival in one line. `selectInterpreter(null)` is the keyless
+build saying it has no live arm; GA-08 passes its interpreter at that call and nothing
+else in the file moves.
+
+**Rejected: putting the assembly in `route.ts` and testing through a spawned server.** It
+buys one integration and costs every unit — and the `curl` criteria already provide the
+integration.
+
+**Cost of deciding later.** GA-10 through GA-14 all read this response. A route only
+testable through a server makes each of those increments either slow or untested at the
+boundary they depend on.
+
+### What the increment also measured
+
+**`next dev` was rewriting `AGENTS.md`.** Next 16.3 appends a generated agent-rules block
+to it on every start, found the first time this build had a route to serve. `AGENTS.md` is
+the project's agent contract — the invariants and the settled decisions, each landed
+deliberately with its rationale — so `agentRules: false` is now set in `next.config.ts`
+and the guidance the block carried is cited in `docs/architecture.md` §10 instead. A
+document whose authority rests on being deliberate cannot be partly automatic. Recorded
+because a future session will otherwise rediscover it as a mysterious dirty file.
+
+**The layer declares no display format, and the template narration exposes it.** All
+numeric output goes through `Intl` (invariant 12), but nothing tells `Intl` how many
+digits a given measure shows. The widest presentation scale in the shipped layer is
+`share_rated_4_plus` at ten-thousandths, so the template caps fraction digits at four,
+which keeps every measure's exact presentation value and invents no precision. The cost is
+visible: an average of exactly 4.40 renders as `4.4`. A per-measure display format is a
+layer field GA-10 will want at its render sites, and it is a GA-03 schema change rather
+than something to guess at in a template GA-09 deletes.
+
+**`.pick()` preserves `z.strictObject`'s catchall, asserted rather than assumed.**
+`AnswerProvenanceSchema` is derived from `ProvenanceSchema` the way `ModelQuerySpecSchema`
+is derived with `.omit().extend()` — one artifact, two surfaces. `AGENTS.md` bans
+`.strict()` because it fails silently through Zod's v4 compatibility surface, and a
+derivation that quietly dropped strictness would fail the same way, so
+`tests/contracts.test.ts` case 7b pins it. Case 7c pins the other half: a `takeaway` field
+added to the narration slot is a test failure, not a design decision nobody noticed.
+
+**The hero moment survives the round trip.** `curl -N` with no key returns *A Streetcar
+Named Desire* at 4.47 from 20 ratings, `min_evidence` reporting 8,440 titles excluded and
+`comparison.material` true — the same figures `tests/engine.test.ts` pins, now assembled,
+serialised and read back off the wire.
+
+---
+
 ---
 
 ## Keeping this current

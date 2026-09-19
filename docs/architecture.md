@@ -85,7 +85,8 @@ src/
       spec-patch.ts             SpecPatch
       result-set.ts             ResultSet, ResultRow, TrustReport, Provenance
       rejection.ts              Rejection
-      answer.ts                 Answer discriminated union
+      answer.ts                 Answer union, AnswerFrame, the narration slot
+      ask.ts                    AskRequest: the ask route's request body
       payload.ts                ReceivedPayload envelope
       semantic-layer.ts         the layer's schema
     ingest/                   RECEIVED PAYLOAD -> STORE; see section 2a
@@ -113,9 +114,12 @@ src/
       interpret.ts            question -> QuerySpec (structured output)
       amend.ts                follow-up -> SpecPatch
       narrate.ts              ResultSet -> takeaway (streamed)
+      narrate-template.ts     the same, deterministic; the no-key producer
       fallback-parser.ts      deterministic, no-API-key path
   app/
-    api/ask/route.ts
+    api/ask/
+      route.ts                the composition root: disk, process singletons, POST
+      answer.ts               assembly, status codes, frame order, the stream
     page.tsx
   components/                 QuestionBox, AnswerCard, RecipeSentence,
                               Chart, NaiveComparison, ProvenanceDrawer
@@ -124,6 +128,7 @@ tests/
   pinned-figures.test.ts      the pinned figures, as regression tests on the ETL
   semantic.test.ts            the layer loads, and a broken one does not
   engine.test.ts              the engine: hero, replay, tie-break, determinism
+  ask-route.test.ts           the route: refusal at 200, provenance, the stream
   conformance/                spec -> expected numbers; EVERY adapter must pass
   evals/questions.jsonl       question -> expected-spec pairs
 ```
@@ -679,6 +684,134 @@ that substantially and improves latency.
 **No API key** — the deterministic fallback parser covers the starter questions, so the
 app runs on a clean clone.
 
+## 6a. The ask route and the answer object
+
+Landed by GA-07. Section 6 is what the two model calls are; this is the seam they are
+composed at, and the shape the answer travels in. The route runs the deterministic path
+today — GA-05's fallback parser interprets, GA-07's template narrates — and GA-08 and
+GA-09 each substitute one producer behind an unchanged contract.
+
+### The route assembles; the engine aggregates
+
+`src/app/api/ask/route.ts` holds only what a deployed process owns: which store to read,
+which layer to load, which interpreter this process got. Everything else — parsing the
+request, assembling the answer, the status codes, the frame order, the stream — is in
+`answer.ts` beside it, so all of it is reachable from a test with an in-memory warehouse,
+with no compiled `.store/` and no HTTP server.
+
+Nothing on the path adds, orders, rounds or thresholds. The one arithmetic-looking line
+is `request.asOf ?? warehouse.latestAsOf()`, which chooses a moment rather than computing
+a figure — and it is resolved **once, up front**, before interpretation, so the refusal
+branch states the same as-of the success branch would have used.
+
+The route reads the compiled store, never `data/*.csv`. A serving path that parsed the
+CSVs would be a second ETL with no manifest, no as-of and nothing to pin. The store and
+the layer are read **once per process**: `.store/` is a build artifact and a layer edit
+is a redeploy, so neither can change while the process lives.
+
+### The refusal is served at 200, and it states its provenance
+
+A question the layer cannot answer returns `ok: false` carrying its clarifying question
+and its concrete options, at HTTP 200. Section 8 explains why the rejection is a returned
+value rather than a throw; this is the same argument one layer out. A 4xx would mean the
+surface had to reconstruct the clarification from a status code, and promoting refusal to
+a demonstrated feature in GA-11 would be a rebuild rather than a rendering.
+
+A **fault** is kept visibly apart from a refusal. A body that is not JSON, or that carries
+no `question`, is a 400; a missing store or an adapter that cannot compute a declared id is
+a 500. Neither is a clarifying question, because nothing was asked in a form that could be
+clarified. Both carry the `requestId`, so a server log and a user report join up.
+
+`Answer` carries a top-level `provenance` on **both** branches: `requestId`, `adapterId`,
+`layerVersion`, `resolvedAsOf`. Which moment, which layer and which adapter refused is
+exactly what a user comparing two sessions needs, and before this the rejection branch
+could say neither.
+
+That object is deliberately **smaller than `Provenance`**. The full record carries
+`engineVersion` and `computedAt`, which describe a computation a refusal never ran. On the
+success branch it is a projection of `resultSet.provenance`, taken by `answerProvenance()`
+so there is one derivation rather than two, and asserted field by field in
+`tests/ask-route.test.ts`.
+
+The `ResultSet` itself is carried **whole and unmodified** rather than spread across the
+answer. The spec, the rows and the trust report then reach the client as the one artifact
+the conformance suite pins and a saved recipe re-runs, instead of as fields the route took
+apart and put back — which is the strongest available statement that the route did not
+touch the numbers.
+
+### Narration is a stream from the first commit, and the answer object has only its slot
+
+The answer object holds `narration: { producer, locale }` and never the text. The takeaway
+arrives as its own frames on the same response.
+
+Putting the prose in a JSON string field is the single most expensive shortcut in the plan
+(build-spec §5.1). The narration's *producer* changes in GA-09; its *contract* must not.
+A field-to-stream change is a change of response kind — the content type, the client's
+fetch handling, component state, and every test that reads it — so it is paid once now,
+while the only producer is a template, or four times later.
+
+Streaming also fixes an ordering the product depends on. The complete answer object
+arrives **before any prose**, which is invariant 1 expressed as a wire format: the numbers
+are on screen before a narrator says anything about them, so no figure can originate in
+the narration.
+
+`producer` is not a restatement of `degraded`. `degraded` says no key was present, so the
+deterministic parser interpreted the question. `producer` says who wrote the takeaway —
+and GA-09's contract is that a narrate failure falls back to the template *without failing
+the request*, which produces a live answer with a templated takeaway. Two different facts,
+and the surface owes the user a different note for each.
+
+`ai/narrate-template.ts` exports the `NarrationProducer` type both producers satisfy:
+`(ResultSet, SemanticLayer, locale) => AsyncIterable<string>`. The template yields one
+chunk, GA-09's yields SDK deltas, and that is the only difference between them. Anything
+narrower — returning a string, resolving a promise — would make GA-09 change the type, and
+with it the route, the frame encoder and every test.
+
+The template quotes; it never computes. Every figure in it is already a field on the
+`ResultSet`. It never previews the naive/honest comparison, which GA-12 renders and would
+otherwise have to unbuild, and it never says "verified" (invariant 5).
+
+### The wire format is newline-delimited JSON, in a fixed frame order
+
+`application/x-ndjson`, one JSON value per line: an `answer` frame, then zero or more
+`narration` deltas, then `end`.
+
+**Not Server-Sent Events.** The question travels in a body, so this is a POST, and
+`EventSource` is GET-only — a browser client reads this with `fetch` and a stream reader
+either way. Against that, SSE's framing is parsing work for nothing, and its reconnect
+semantics are actively wrong here: a dropped connection must be re-asked as a fresh
+request with its own `requestId`, never silently resumed into an answer whose provenance
+says otherwise.
+
+`end` is a frame rather than the stream simply closing, because a reader otherwise cannot
+tell a finished narration from a connection that died mid-sentence — and GA-09 streams
+that narration from a model, where the distinction becomes real.
+
+**Everything fallible happens before the first byte.** Parsing, interpretation and
+execution all resolve before the stream opens, because once a byte is written the status
+line is gone and a failure can only be expressed as a truncation. Only narration runs
+inside the stream, and GA-09's contract is that it degrades rather than fails.
+
+### Every response carries `nosniff` and `no-store`
+
+`X-Content-Type-Options: nosniff` on answers, refusals and faults alike. The body echoes
+the user's own question back inside `rejection.asked`, and without the header a browser is
+free to disregard the declared type, sniff markup out of that echo and render it — so it
+is what keeps a clarifying question from becoming an injection surface.
+
+`Cache-Control: no-store` because an answer is pinned to a `requestId` and a `computedAt`.
+A cached one would be a different answer wearing another answer's provenance, which is the
+confident wrong answer this product exists to catch.
+
+### The request carries the as-of
+
+`AskRequest` is `{ question, locale, asOf }`. The question is the only free text anywhere
+in the product; the other two are context the **caller** owns and the model never chooses
+(build-spec §3 GA-08). The as-of is what makes a past answer re-runnable rather than
+merely explainable, and it is the seam GA-06's replay case and GA-14's saved recipes both
+come through. An empty question is a legitimate value: it returns the clarifying question
+that lists the starter questions.
+
 ## 7. Locale-keyed labels and `Intl` formatting
 
 The structural half of internationalisation, which ships in v1. Why it is split this
@@ -887,6 +1020,17 @@ with no console or page errors. Two notes: the CLI requires an explicit preset
 (`init -b radix -p nova`) because `--yes` alone still prompts, and `--base-color` is
 gone in 4.x; and the drawer does not move focus into its content on open, so the
 provenance drawer must give itself a focusable first element.
+
+**`agentRules: false` is set in `next.config.ts`.** Next 16.3 appends a generated block
+to `AGENTS.md` on every `next dev` start
+(`node_modules/next/dist/server/lib/generate-agent-files.js`), which made `npm run dev`
+dirty a tracked file on every run — found by GA-07, the first increment with a route to
+serve. `AGENTS.md` here is the project's agent contract: the invariants an agent must not
+break and the decisions already settled, each landed deliberately with its rationale. A
+document whose authority rests on being deliberate cannot be partly automatic, so the flag
+is off and the guidance the block carries is cited here instead: **Next 16 is not the Next
+16 a model was trained on** — `node_modules/next/dist/docs/` is the version-accurate
+reference, and the async-only note above is one instance of why.
 
 **Rejected: DuckDB-WASM.** 142 MB unpacked for a 100,836-row dataset, and shipping a
 SQL engine to display SQL a non-technical user cannot read contradicts the thesis.

@@ -2,9 +2,11 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { describe, expect, it } from "vitest";
 
 import {
+  AnswerProvenanceSchema,
   AnswerSchema,
   MAX_LIMIT,
   ModelQuerySpecSchema,
+  NarrationSchema,
   ProvenanceSchema,
   QuerySpecSchema,
   SpecPatchSchema,
@@ -168,7 +170,14 @@ describe("Answer: the union forces both paths", () => {
 
     const rejection = AnswerSchema.parse({
       ok: false,
-      requestId: "req_1",
+      // Every answer states its provenance, refusal included: which moment, which layer
+      // and which adapter refused is what makes a refusal reproducible (GA-07).
+      provenance: {
+        requestId: "req_1",
+        adapterId: "local-store",
+        layerVersion: "1.0.0",
+        resolvedAsOf: "2018-09-26T00:00:00.000Z",
+      },
       degraded: true,
       rejection: {
         kind: "clarify",
@@ -180,6 +189,32 @@ describe("Answer: the union forces both paths", () => {
     });
 
     expect(describeAnswer(rejection)).toBe("clarify: which region?");
+  });
+
+  // Case 7b. `AnswerProvenanceSchema` is derived with `.pick()` from `ProvenanceSchema`
+  // rather than written out again — one artifact, two surfaces, as `ModelQuerySpecSchema`
+  // already does with `.omit()`. Strictness has to survive that derivation, and the
+  // failure mode if it does not is silence: an extra field would simply be accepted.
+  // Asserted rather than assumed, for the same reason `.strict()` is banned outright.
+  it("keeps the derived answer provenance strict", () => {
+    expect(
+      AnswerProvenanceSchema.safeParse({
+        requestId: "req_1",
+        adapterId: "adapter_demo",
+        layerVersion: "0.0.0",
+        resolvedAsOf: "2018-09-26T00:00:00.000Z",
+        engineVersion: "1.0.0",
+      }).success,
+    ).toBe(false);
+  });
+
+  // Case 7c. The narration slot cannot hold prose. The single most expensive shortcut in
+  // the plan (build-spec §5.1) is a `takeaway` string on the answer object, and strictness
+  // is what makes adding one a test failure rather than a design decision nobody noticed.
+  it("refuses a narration that carries text", () => {
+    expect(
+      NarrationSchema.safeParse({ producer: "template", locale: "en", takeaway: "…" }).success,
+    ).toBe(false);
   });
 });
 

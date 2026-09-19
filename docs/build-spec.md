@@ -345,7 +345,10 @@ definition of done is a record of what was built, not an instruction to keep cod
 
 **Size** S — half a session · **Depends on** GA-05
 
-**Landed** — not yet.
+**Landed** 2026-09-18 · PR pending. Decisions recorded in `docs/how-this-was-built.md`,
+entries 44–47; the standing technical record is `docs/architecture.md` §6a, with the
+`agentRules` note in §10. From here this definition of done is a record of what was built,
+not an instruction to keep code matching it.
 
 **Delivers.** `src/app/api/ask/route.ts` on the Node runtime, assembling `{requestId, spec, resultSet, trustReport, narration, layerVersion, adapterId, resolvedAsOf, degraded}` — with narration delivered as a **stream from the first commit**, the degraded template sent as a single chunk.
 
@@ -751,7 +754,16 @@ synonym is asserted load-bearing — together with **the fallback parser's two s
 output space**, **`CONTRARY_TERMS` as a refusal rule**, **the key-presence branch with an
 injected live arm**, and **`scripts/module-alias.mjs`**, the resolver that lets a `scripts/*.ts`
 runner import modules written for the bundler: all settled by GA-05 and now standing in
-`docs/architecture.md` §8, §9 and §10.
+`docs/architecture.md` §8, §9 and §10. **The answer's wire format** — newline-delimited JSON in a
+fixed frame order (`answer`, then narration deltas, then `end`), with SSE rejected because a
+POST cannot use `EventSource` and its reconnect semantics would resume a stream whose
+provenance says otherwise — together with **the narration slot** (`{ producer, locale }`,
+never the text, behind a `NarrationProducer` returning an `AsyncIterable<string>` that GA-09
+substitutes into), **`Answer.provenance` on both branches** (the four facts a refusal can
+honestly state, projected from `resultSet.provenance` on the success branch), **the refusal
+served at HTTP 200 with faults kept apart as 400 and 500**, and **`AskRequest` as
+`{ question, locale, asOf }`** — the request carries the as-of: all settled by GA-07 and now
+standing in `docs/architecture.md` §6a.
 
 ---
 
