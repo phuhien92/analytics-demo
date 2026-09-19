@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import type { SemanticLayer } from "@/server/contracts";
 
-import { selectInterpreter } from "@/server/ai/mode";
+import { aiMode, selectInterpreter, type Interpreter } from "@/server/ai/mode";
 import { narrateFromTemplate } from "@/server/ai/narrate-template";
 import { loadSemanticLayer } from "@/server/semantic/load";
 import { LocalStoreWarehouse } from "@/server/warehouse/local-store";
@@ -17,10 +17,13 @@ import { askResponse, type AskDependencies } from "./answer";
  * status codes, the frame order and the stream are all in `./answer.ts`, where a test
  * can reach them without a compiled store or an HTTP server.
  *
- * **No model is called here and no provider dependency is imported.** `selectInterpreter`
- * takes its live arm by injection and is handed `null`, which is how a keyless build says
- * it has no live arm (`docs/architecture.md` §8). GA-08 passes its interpreter in at this
- * one line; nothing else about this file moves.
+ * **No provider dependency is imported on the keyless path.** `selectInterpreter` takes
+ * its live arm by injection (`docs/architecture.md` §8), and `liveArm()` below reaches
+ * `ai/interpret.ts` through a *dynamic* import taken only when a key is present. So the
+ * SDK — and its key handling — never enters the import graph of the one path that has to
+ * work on a clean clone with nothing but the dependencies installed (invariant 13).
+ * Handing `selectInterpreter` a `null` is still how a keyless process says it has no
+ * live arm; the only change is that a keyed one now has something to hand it.
  */
 
 /** The store is read from disk and the layer is parsed off it, so this cannot run on edge. */
@@ -47,7 +50,23 @@ export const dynamic = "force-dynamic";
  */
 let cached: AskDependencies | null = null;
 
-function dependencies(): AskDependencies {
+/**
+ * The live arm, or `null` — and the import that only a keyed process pays for.
+ *
+ * The branch is on the same `aiMode()` `selectInterpreter` consults, so the two cannot
+ * disagree about which mode this process is in. What the branch buys is the *import*:
+ * a static `import ... from "@/server/ai/interpret"` would pull `@anthropic-ai/sdk` into
+ * this module's graph unconditionally, and the keyless path would then depend on a
+ * package it never calls. It is not caught either — a key present with a broken SDK is a
+ * broken deployment, and `answer.ts` already has a 500 that says exactly that.
+ */
+async function liveArm(): Promise<Interpreter | null> {
+  if (aiMode() !== "live") return null;
+  const { liveInterpreter } = await import("@/server/ai/interpret");
+  return liveInterpreter();
+}
+
+async function dependencies(): Promise<AskDependencies> {
   if (cached !== null) return cached;
 
   const layer: SemanticLayer = loadSemanticLayer();
@@ -56,7 +75,7 @@ function dependencies(): AskDependencies {
   cached = {
     warehouse,
     layer,
-    interpreter: selectInterpreter(null),
+    interpreter: selectInterpreter(await liveArm()),
     narrate: narrateFromTemplate,
     newRequestId: () => crypto.randomUUID(),
     now: () => new Date().toISOString(),
@@ -65,5 +84,5 @@ function dependencies(): AskDependencies {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return askResponse(dependencies(), request);
+  return askResponse(await dependencies(), request);
 }

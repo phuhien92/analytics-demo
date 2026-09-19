@@ -1,6 +1,10 @@
 # Golden Analytics — the v1 build spec
 
+<<<<<<< HEAD
 **Status: in progress.** GA-01 through GA-07, GA-10 and GA-12 have landed. Six of the sixteen
+=======
+**Status: in progress.** GA-01 through GA-08 and GA-10 have landed. Five of the sixteen
+>>>>>>> 1165d29 (feat: GA-08 — interpret: structured outputs on a cached prefix)
 increments are **deferred rather than cancelled** — see §0, which is the first thing to read.
 
 ## 0. The demo scope: the build stops after GA-11, at position 12
@@ -10,7 +14,15 @@ being built from them is shorter, and it ends at **position 12**:
 
 | In scope | Deferred (post-mvp) |
 | --- | --- |
-| GA-01 … GA-05 · GA-06 · GA-07 · **GA-10** · **GA-12** · **GA-11** | GA-08 · GA-09 · GA-13 · GA-14 · GA-15 · GA-16 |
+| GA-01 … GA-05 · GA-06 · GA-07 · **GA-10** · **GA-12** · **GA-11** | ~~GA-08~~ · GA-09 · GA-13 · GA-14 · GA-15 · GA-16 |
+
+**GA-08 came back, on 2026-09-19.** The deferral below rests on one fact — the build had no
+API key — and a captain decision supplied one, which settles the provider question as
+`docs/architecture.md` already pinned it: Anthropic, `claude-opus-5`. Free typing therefore
+ships and GA-10's disabled question box becomes a live one. **GA-09 remains deferred**, so
+narration is still GA-07's template, and the rest of this section stands unchanged: what it
+argues is that the surface never depended on the model, and landing GA-08 does not make it
+depend on one — invariant 1 still says no figure comes from a model response.
 
 The reason is one fact about the dependency graph: **the app answers questions without a model.**
 GA-05 shipped a deterministic fallback parser that covers the starter questions, GA-07's route
@@ -20,8 +32,9 @@ the three increments that make the product *visible* — the surface, the catch,
 sentence — depend only on the route, not on GA-08's interpret call or GA-09's narrate call. The
 demo reaches its own hero moment with no API key and no provider dependency.
 
-What that costs is real and is stated here rather than discovered: free typing and follow-up
-amendments (GA-08, GA-09, GA-13) are the model's half of the product and do not ship; the
+What that costs is real and is stated here rather than discovered: follow-up amendments
+(GA-09, GA-13) are the model's remaining half and do not ship — free typing does, since
+GA-08 came back; the
 provenance drawer and saved recipes (GA-14) do not ship, though GA-10 renders the provenance
 inline instead of dropping it; the accessibility *verification* pass (GA-15) does not run, so
 GA-10 builds its accessibility in and asserts it in `tests/ui/` rather than relying on a later
@@ -149,7 +162,7 @@ cross-reference. **Build in the `#` column's order, not in id order.**
 | 5 | GA-05 | Fallback parser, rejection path, eval harness | GA-03, GA-04 | M | flexible with GA-06 |
 | 6 | GA-06 | Proof suite: conformance, second adapter, replay, paraphrase | GA-04 | M | flexible with GA-05 |
 | 7 | GA-07 | The ask route and the answer object | GA-05 | S | locked |
-| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked · **deferred (§0)** |
+| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked · **landed** |
 | 9 | GA-09 | Narrate, and amend | GA-07, GA-08 | M | locked · **deferred (§0)** |
 | 10 | GA-10 | The surface: shell, zero state, answer card | GA-07 | L | locked |
 | **11** | **GA-12** | **The catch** | GA-10 | M | **moved up one by C1** |
@@ -413,7 +426,10 @@ not an instruction to keep code matching it.
 
 **Size** M — one session · **Depends on** GA-07
 
-**Landed** — not yet.
+**Landed** 2026-09-19, on branch `fm/ga-08-interpret-cached-prefix`. Brought back into
+scope after §0 deferred it: §0's reason was that the build had no API key, and one now
+exists. Decisions in `docs/how-this-was-built.md` entries 54–61; standing technical truth
+in `docs/architecture.md` §6.
 
 **Delivers.** `ai/interpret.ts` using `client.messages.parse` with `output_config: { format: zodOutputFormat(ModelQuerySpecSchema), effort: "low" }`, importing `zodOutputFormat` from `@anthropic-ai/sdk/helpers/zod` and reading the result off `message.parsed_output`; the stable prefix in `system` carrying a `cache_control` breakpoint — pretty-printed semantic layer plus **at least five** few-shot examples — with the user question last. Freely typed questions now work.
 
@@ -788,7 +804,16 @@ settled it moves to `docs/architecture.md` and leaves this file.
 1. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
 
-**Settled and migrated out.** `MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
+**Settled and migrated out.** The **interpret call's shape** — `client.messages.parse` with
+`output_config.format` carrying `zodOutputFormat(ModelQuerySpecSchema)` at `effort: "low"`, a
+three-block stable prefix with one `cache_control` breakpoint on its last block, few-shot
+examples *generated* from the starter catalogue rather than authored, an undeclared term
+echoed verbatim so `resolveSpec()` produces GA-05's `Rejection`, and the live arm reached
+through a dynamic import gated on `aiMode()` — together with **how the caching claim is
+checked** (against the constructed request, with the live confirmation opt-in behind
+`LIVE_INTERPRET_API_KEY` rather than the product's own key) and **two eval baselines in two
+files**: all settled by GA-08 and now standing in `docs/architecture.md` §6, §8 and §9.
+`MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
 measurement that grounds them, and the Vitest pin — both settled by GA-01 and now standing in
 `docs/architecture.md` §2 and §10. The **`asOf` wire format** — ISO-8601 UTC on the spec, in
 provenance and in the manifest; unix seconds inside the store, where the comparison happens —

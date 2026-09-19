@@ -794,21 +794,104 @@ Each of these was measured during GA-06 and each is kept executable in
 
 `@anthropic-ai/sdk` on `claude-opus-5`.
 
-**Call 1 — interpret.** Structured outputs via `output_config.format`. Note the
-`output_format` parameter is deprecated and assistant prefill returns 400 on Opus 5, so
-structured outputs is the only correct route. `output_config.effort: "low"` —
-interpretation is extraction-shaped, not reasoning-heavy. Zod-validated against the
-semantic layer before execution.
+**Call 1 — interpret.** `ai/interpret.ts`, landed in GA-08. Structured outputs via
+`output_config.format`, carrying `zodOutputFormat(ModelQuerySpecSchema)` and read back off
+`message.parsed_output` through `client.messages.parse`. `output_format` is not merely
+deprecated — it is **gone from the SDK's type surface**, so writing it is a compile error;
+assistant prefill returns 400 on Opus 5. Structured outputs is the only correct route.
+`output_config.effort: "low"` — interpretation is extraction-shaped, not reasoning-heavy.
+Thinking is left at its default rather than disabled: on Opus 5 it is on by default, and
+disabling it is the documented way to get a tool call written into visible text.
 
 **Call 2 — narrate.** Streamed. Receives the computed aggregate (~20 rows) plus the
-trust report. Never the raw data.
+trust report. Never the raw data. GA-09 owns it; GA-07's template is the producer until
+then, behind the same `NarrationProducer` interface.
 
-**Prompt caching** on the stable prefix (semantic layer + few-shot examples), user
-question last. Roughly 2k in / 200 out per question (~$0.015 uncached); caching cuts
-that substantially and improves latency.
+**Prompt caching** on the stable prefix (instructions + semantic layer + few-shot
+examples), user question last. Roughly 2k in / 200 out per question (~$0.015 uncached);
+caching cuts that substantially and improves latency.
 
 **No API key** — the deterministic fallback parser covers the starter questions, so the
 app runs on a clean clone.
+
+### One artifact is both the model contract and the runtime validator
+
+`ModelQuerySpecSchema` is handed to the API as the output format *and* is what the response
+is validated against. There is no second schema to drift from the first.
+
+The fields the model may not choose are absent **by construction rather than by
+instruction**: `ModelQuerySpec` omits `sort.tieBreak` and `asOf` (section 2), so
+`parsed_output` cannot carry either one even if the model tried. The layer declares the
+tie-break and `engine/resolve.ts` fills it; the request carries the as-of and
+`api/ask/answer.ts` applies it. A prompt rule would have been a request; a missing field is
+a guarantee.
+
+### An undeclared term is echoed, never matched to the nearest declared one
+
+Invariant 4, expressed as a prompt rule. Structured outputs forces the model to emit *a*
+spec, so there is no refusal shape for it to return — which means a model that helpfully
+substituted the closest declared measure would turn a question the layer cannot answer into
+one it answers wrongly, with nothing on screen saying so.
+
+So the instructions tell it to put the user's own word in the field verbatim.
+`resolveSpec()` then recognises the term as undeclared and returns the clarifying question
+that names the gap — the same `Rejection`, through the same builder, as the fallback
+parser's. The refusal path is GA-05's, unchanged; the model only supplies a different way
+of reaching it.
+
+A response that parsed to nothing (`parsed_output: null`) resolves an empty input, which is
+also a clarifying question. A *transport* failure is deliberately not caught: an outage is
+not a question the layer could not answer, and rendering it as one would tell the user their
+question was the problem. It propagates to `answer.ts`'s 500, which says the deployment is
+broken. That split — refusal at 200, fault at 500 — is section 6a's, and the interpreter
+does not blur it.
+
+### The few-shot examples are generated from the catalogue, not authored
+
+Invariant 6 keeps dataset-specific knowledge out of the prompt. A hand-written block naming
+`avg_rating` and `genre` would put a MovieLens assumption inside the portable half of the
+build, and would drift from the layer the moment a label changed.
+
+So `fewShotExamples()` builds them from `STARTER_QUESTIONS` and the layer, each one passed
+through `ModelQuerySpecSchema` — an example cannot teach the model a shape the runtime would
+then reject, and a second dataset gets its own examples for free. Every example carries the
+full declared guard set, because `resolveSpec()` fills guards only when the field is
+*absent*: an example showing `guards: []` would teach the model to ask for a genuinely
+unguarded answer with nothing saying so.
+
+### The prefix is measured, and the floor is why the examples are load-bearing
+
+**Measured on the shipped artifacts:** instructions 1,169 characters, catalogue 2,889,
+examples 3,339 — a stable prefix of **7,397 characters, ~1,849 tokens** at the four-
+characters-per-token estimate section 3 already uses, across **three `system` blocks with
+nine few-shot examples**. The cache breakpoint sits on the third block, so all three cache.
+
+Two numbers explain why both the pretty-printing and the examples are cost requirements
+rather than preferences, given Opus 5's **512-token** minimum cacheable prefix:
+
+- The catalogue block alone is ~722 tokens pretty-printed and **~456 minified** — below the
+  floor. Minifying the layer is a cost regression disguised as a saving (section 3).
+- The few-shot block adds ~835 tokens, which is what turns a prefix that *just* clears the
+  floor into one with real margin. Trimming examples for cost therefore **raises** the bill.
+
+Both failures are silent: no error, no warning, no header — just `cache_creation_input_tokens: 0`
+and every question paying uncached prefix cost forever. Nothing downstream can detect it,
+which is why `tests/ai/interpret.test.ts` asserts the prefix clears the floor with margin,
+that it is byte-identical across two different questions, and that exactly one breakpoint
+sits on the final block. Those are properties of the **request**, checkable with no key and
+no spend; the live confirmation is opt-in (section 9).
+
+### The live arm is injected, and reached through a dynamic import
+
+`selectInterpreter` takes its live arm by injection (section 8). GA-08 supplies one, and
+`app/api/ask/route.ts` reaches `ai/interpret.ts` through `await import(...)` taken only when
+`aiMode()` says `live`. A static import would put `@anthropic-ai/sdk` — and its key
+handling — into the import graph of the one path that has to work on a clean clone with
+nothing but the dependencies installed (invariant 13). Passing `null` is still how a keyless
+process says it has no live arm.
+
+`app/page.tsx` calls the same `aiMode()` to decide whether the question box is live, so the
+composer the user sees and the interpreter the route got can never be two different answers.
 
 ## 6a. The ask route and the answer object
 
@@ -981,6 +1064,8 @@ way, and what is deferred, is in `docs/design.md` section 7.
 What the user is shown for each error case is in `docs/design.md` section 8.
 
 - **AI unavailable** → fallback parser; the app degrades, it does not break.
+- **AI present but the question is undeclared** → a clarifying question, not a nearest
+  match. Same `Rejection`, same builder, whichever interpreter produced it (section 6).
 
 ### The branch is on key presence, taken once, before any request
 
@@ -995,9 +1080,11 @@ cannot change mid-request, is what makes "degrades rather than breaks" checkable
 than accidental. A whitespace-only value reads as absent, because `.env.example` ships
 `ANTHROPIC_API_KEY=` and a clean clone that copies it has the variable set and no key.
 
-The live arm is **injected, not imported**: GA-08 owns the model call, and importing it
-here would put the SDK on the import graph of the one path that must work with nothing but
-the declared dependencies.
+The live arm is **injected, not imported**: `ai/interpret.ts` owns the model call, and
+importing it here would put the SDK on the import graph of the one path that must work with
+nothing but the declared dependencies. GA-08 supplied the arm without changing that —
+`route.ts` reaches it through a dynamic import gated on the same `aiMode()`, so the keyless
+path still never names the SDK (section 6).
 
 ### The fallback parser matches declared vocabulary, and nothing else
 
@@ -1084,7 +1171,13 @@ offer.
   - **It compares specs, not prose, so it needs no API key.** It runs in CI, on a clean
     clone, and it ran before any model call existed. A loop that costs money per run is a
     loop that gets run less often, exactly when the layer most needs it. The interpreter is
-    a parameter, so the same lines score the model path when one exists.
+    a parameter, so the same lines score the model path: `npm run eval -- --live` scores
+    that path, sequentially and opt-in. Without a key it **refuses rather than degrades** —
+    a model score that no model produced is the unauditable confident answer this product
+    argues against, aimed at its own evidence. The two scores are recorded in sibling files,
+    `tests/evals/baseline.json` and `baseline.live.json`, because the paths will not agree
+    and that disagreement is the measurement; one file holding whichever ran last would
+    erase it.
   - **A failure names the missing structure.** Not "expected avg_rating, got null" — that
     turns every iteration into an investigation. The runner distinguishes an expectation
     naming something the layer does not declare (`no measure matched "revenue" — declared
@@ -1104,6 +1197,19 @@ offer.
   `tests/evals/harness.test.ts` removes each in turn and requires the eval score to fall.
   The layer grows throughout the build by design, and a comment cannot hold the line that
   each addition was earned — a synonym nothing fails without is one nobody earned.
+- **The interpret call is asserted against the request it constructs**
+  (`tests/ai/interpret.test.ts`): the prefix byte-identical across two different questions,
+  exactly one cache breakpoint on its final block, the question in `messages` and nowhere in
+  `system`, the prefix clear of the 512-token floor with margin, and the output schema
+  carrying no `tieBreak` and no `asOf`. Those are the properties caching actually rests on,
+  and asserting them locally is what makes a silent cost regression catchable on every clone.
+  A live confirmation exists and is **opt-in behind its own variable**,
+  `LIVE_INTERPRET_API_KEY` (`tests/ai/live-interpret.test.ts`): two identical requests, and
+  `cache_read_input_tokens > 0` on the second. It is deliberately not `ANTHROPIC_API_KEY` —
+  that key is present wherever the app runs, which is where `npm test` runs too, and a suite
+  that spent it because it happened to be in the environment would put a bill on a command
+  nobody expects to cost anything. Unset is a **loud skip** naming what went unchecked; set
+  but failing is a failure, on §5b's reasoning.
 - **Rejection tests** (`tests/rejection.test.ts`) — questions the semantic layer cannot
   answer must produce a clarifying question, never a coerced near-match. Asserted on the
   returned object: that it validates, that it names what is missing and what is declared,

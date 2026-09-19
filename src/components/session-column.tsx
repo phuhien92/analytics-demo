@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import type { DatasetProvenance } from "@/lib/view-model";
@@ -17,31 +20,57 @@ import { formatters } from "@/lib/intl";
  * (`docs/build-spec.md` §0) — the region and its copy are shell, which is what GA-10
  * delivers.
  *
- * ## Why the composer cannot be typed into
+ * ## The composer is live exactly when the deployment can read a sentence
  *
- * This build has no model and will not get one (`docs/build-spec.md` §0). Free typing is
- * the one part of the product that genuinely needs interpretation: `ai/fallback-parser.ts`
- * recognises the catalogue and declared vocabulary, and refuses everything else by
- * design. A box that accepted any sentence here would be promising a reading it cannot
- * perform, which is the confident-answer failure this product exists to remove, pointed
- * at its own input. So the field states what it needs and the starter questions are the
- * way in — which is `docs/design.md` §6's position anyway: the question box is
- * subordinate to the answer, and the zero state is starter questions.
+ * Free typing is the one part of this product that genuinely needs interpretation.
+ * `ai/fallback-parser.ts` recognises the catalogue and the layer's declared vocabulary
+ * and refuses everything else by design, so on a keyless build a box that accepted any
+ * sentence would be promising a reading it cannot perform — the confident-answer failure
+ * this product exists to remove, pointed at its own input. GA-08 supplies the reading,
+ * and `canInterpret` carries which of the two deployments this is (`lib/view-model.ts`).
  *
- * It is stated on the control rather than in a banner. `docs/design.md` §8 rejects a
- * persistent no-key banner because it keeps charging for a fact the user has already
- * taken in; a disabled control explaining itself is the control's own state, and it is
- * read once, where the user tries to act.
+ * Both states are stated **on the control** rather than in a banner. `docs/design.md` §8
+ * rejects a persistent no-key banner because it keeps charging for a fact the user has
+ * already taken in; a control that explains itself is the control's own state, read once,
+ * where the user tries to act. Live, the note is not a boast — it says the same thing the
+ * refusal path will say, before the user has to discover it: an undeclared term comes
+ * back as a question rather than a guess (invariant 4).
+ *
+ * The starter questions stay the way in either way. `docs/design.md` §6 puts the question
+ * box subordinate to the answer and makes the zero state starter questions, and a live
+ * model does not change that ordering.
  */
 
 export type SessionColumnProps = {
   readonly dataset: DatasetProvenance;
   readonly locale: string;
   readonly onShowStarters: () => void;
+  /** Whether this deployment can read a freely typed question (`lib/view-model.ts`). */
+  readonly canInterpret: boolean;
+  readonly onAsk: (question: string) => void;
+  readonly busy: boolean;
 };
 
-export function SessionColumn({ dataset, locale, onShowStarters }: SessionColumnProps) {
+export function SessionColumn({
+  dataset,
+  locale,
+  onShowStarters,
+  canInterpret,
+  onAsk,
+  busy,
+}: SessionColumnProps) {
   const format = formatters(locale);
+  const [draft, setDraft] = useState("");
+  const question = draft.trim();
+  const canSubmit = canInterpret && question !== "" && !busy;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    onAsk(question);
+    // Cleared on send: the column holds recipes, not a transcript, and a question left
+    // sitting in the box after its answer has rendered reads as one still unasked.
+    setDraft("");
+  };
 
   return (
     <aside
@@ -71,7 +100,10 @@ export function SessionColumn({ dataset, locale, onShowStarters }: SessionColumn
 
       <div className="border-t border-ga-line px-5 py-4">
         <form
-          onSubmit={(event) => event.preventDefault()}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
           className="rounded-xl border border-ga-line-strong bg-ga-raised p-2.5"
         >
           <label className="sr-only" htmlFor="ask-box">
@@ -80,12 +112,23 @@ export function SessionColumn({ dataset, locale, onShowStarters }: SessionColumn
           <textarea
             id="ask-box"
             rows={2}
-            disabled
+            disabled={!canInterpret}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            // Enter sends, Shift+Enter breaks the line. A two-row box people will write
+            // one sentence into; requiring a reach for the button to send it is friction
+            // with nothing on the other side of it.
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                submit();
+              }
+            }}
             aria-describedby="ask-box-reason"
             placeholder="Ask anything about this catalogue…"
             className="w-full resize-none bg-transparent text-body text-ga-ink placeholder:text-ga-ink-muted focus-visible:outline-none disabled:cursor-not-allowed"
           />
-          <div className="mt-1.5 flex justify-end">
+          <div className="mt-1.5 flex justify-end gap-2">
             <Button
               type="button"
               variant="secondary"
@@ -96,12 +139,17 @@ export function SessionColumn({ dataset, locale, onShowStarters }: SessionColumn
               <Sparkles aria-hidden="true" strokeWidth={2} />
               Starter questions
             </Button>
+            {canInterpret ? (
+              <Button type="submit" size="sm" disabled={!canSubmit}>
+                Ask
+              </Button>
+            ) : null}
           </div>
         </form>
         <p id="ask-box-reason" className="mt-2 text-small text-ga-ink-secondary">
-          Typing a question needs a model to read it, and this build runs without one. The
-          starter questions work, and every figure they return comes from the engine either
-          way.
+          {canInterpret
+            ? "Type a question and I'll read it against this catalogue's declared terms. Anything it doesn't declare comes back as a question rather than a guess — and every figure is computed by the engine, never written by the model."
+            : "Typing a question needs a model to read it, and this build runs without one. The starter questions work, and every figure they return comes from the engine either way."}
         </p>
       </div>
     </aside>

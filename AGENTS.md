@@ -131,6 +131,14 @@ The central artifact (architecture §2). Every safety property falls out of its 
 | shadcn's `<table>` for the accessible table | Nests the `<table>` in a scroll container — a `<div>` between the figure and the one element the accessibility claim rests on, for four utility classes of styling |
 | A second `Intl` formatter anywhere on the surface | `src/lib/intl.ts` is the only one, enforced by `tests/ui/surface-rules.test.ts`. A formatter reachable two ways is one that disagrees with itself |
 | Rendering an as-of in the reader's own zone | `2018-09-26T00:00:00.000Z` names **25 September** west of Greenwich. All dates format in UTC |
+| Gating the live interpret check on `ANTHROPIC_API_KEY` | That key is the *product's* and is present wherever the app runs — which is where `npm test` runs too. A suite firing paid requests because a key was in the environment puts a surprise bill on an ordinary command. `LIVE_INTERPRET_API_KEY` decides, and is passed to the client explicitly |
+| Proving prompt caching only against a live response | The properties caching rests on — a prefix byte-identical across questions, one breakpoint at its end, the question after it — are properties of the *request*, so they are checkable with no key. A live-only check goes quiet exactly where the suite is most likely to run |
+| Authoring the few-shot examples by hand | `avg_rating` and `genre` in the prompt is a MovieLens assumption in the portable half of the build (invariant 6), and an authored block drifts from the layer the moment a synonym is earned. They are generated from `STARTER_QUESTIONS` through `ModelQuerySpecSchema` |
+| A second output shape letting the model return a refusal | Moves "what is answerable" into the model, which is the one thing the semantic layer exists to prevent. An undeclared term is echoed verbatim and `resolveSpec()` produces GA-05's `Rejection` — the refusal stays deterministic |
+| Minifying the semantic layer, or trimming below five few-shot examples | Both drop the cached prefix toward Opus 5's 512-token floor, and falling under it fails silently. Measured: the catalogue block is ~456 tokens minified, under the floor on its own |
+| A static import of `ai/interpret.ts` in the ask route | Honours the injection seam's shape and breaks its purpose: it puts the SDK and its key handling on the keyless path's import graph (invariant 13). `route.ts` uses a dynamic import gated on `aiMode()` |
+| One eval baseline file for both interpreters | The model path and the fallback path will not agree, and that disagreement is the measurement. One file would let `--update-baseline` on a live run silently redefine the keyless regression. `baseline.json` and `baseline.live.json`, each naming its path |
+| Catching a transport failure inside the interpreter and clarifying | An outage is not a question the layer could not answer; rendering it as one tells the user their question was the problem. It propagates to `answer.ts`'s 500. Only *undeclared vocabulary* becomes a clarifying question |
 | A standing catalogue summary on the zero state | Considered during the UI direction and declined: a number that exists before anyone asked for anything. The permitted line names the data *source*, read off the store manifest, never from a spec (build-spec §1.2) |
 | Inferring the naive lead's width on the surface | The comparison's rows are capped at `spec.limit`, so ten rows cannot say that **296** members tie at 5.00 — and the width is the finding. The engine counts it and carries it as `comparison.tiedAtTop`; a surface that stated 296 anyway would be stating a figure that originated outside the engine (architecture §5a) |
 | A spec-plus-`SpecPatch` transport for the guard escape | GA-11 needs that machinery and will build it; GA-12 moving one button through it would ship most of a later increment. The escape is `withoutGuards`, a list of declared guard ids applied to the resolved spec by **subtraction only**, so interpretation is untouched and no other field of the spec is reachable (architecture §6a) |
@@ -195,8 +203,9 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `src/server/` splits `contracts/` (a leaf), `ingest/` (payload → store),
 `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
-`engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/`, `conformance/` and
-`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`) and `ui/`. `src/app/api/ask/`
+`engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/` (`mode`, `interpret`,
+`live-interpret`), `conformance/` and `evals/` (`questions.jsonl`, `baseline.json`,
+`baseline.live.json`, `harness.test.ts`) and `ui/`. `src/app/api/ask/`
 splits `route.ts` (the composition root: disk reads, process singletons, `POST`) from
 `answer.ts` (assembly, status codes, frame order, the stream), so the whole HTTP surface is
 testable with an injected warehouse — no compiled `.store/`, no server.
@@ -206,7 +215,10 @@ imports no `node:*`**: `intl.ts` is the only formatter the surface has, `answer-
 reads the route's NDJSON, `view-model.ts` is types both sides share.
 `src/server/surface/zero-state.ts` builds the first paint from the store **manifest** and the
 layer, and imports neither `engine/` nor `warehouse/` — which is what makes "no computed
-result before a question" structural rather than editorial. `src/components/ui/` holds the
+result before a question" structural rather than editorial. `SurfaceData.canInterpret` is
+read from `aiMode()` in `page.tsx` and is what makes the question box live; both states of
+the composer are held by `tests/ui/session-column.test.tsx`, because invariant 13 makes the
+keyless one a real deployment. `src/components/ui/` holds the
 shadcn components as copied-in source; each one is earned, and this screen earned three.
 
 `tests/conformance/` compiles its store in memory from `data/`, so it runs on a clean
@@ -221,7 +233,10 @@ extension and `erasableSyntaxOnly` is on project-wide (architecture §10).
 
 `npm run eval` scores `tests/evals/questions.jsonl` against the committed baseline.
 **It compares specs, never prose, so it never calls a model and needs no key** — that
-is what lets the layer acquire structure in CI and on a clean clone. A failing eval
+is what lets the layer acquire structure in CI and on a clean clone. `--live` scores the
+same lines the same way against the model path and records to `baseline.live.json`; with no
+key it **refuses rather than degrades**, because a model score no model produced is this
+product's own failure mode aimed at its evidence. A failing eval
 must name the missing structure, not report a mismatch; a synonym is added only when a
 named case demanded it, and `tests/evals/harness.test.ts` asserts every declared
 synonym is load-bearing by removing it and requiring the score to fall. It runs on the
@@ -251,23 +266,47 @@ file* on every start; a contract whose authority rests on being deliberate canno
 automatic (architecture §10).
 
 Interpretation runs at `output_config.effort: "low"` — it is extraction-shaped,
-not reasoning-heavy. Prompt caching sits on the stable prefix (semantic layer plus
-few-shot examples) with the user question last.
+not reasoning-heavy. Prompt caching sits on the stable prefix (instructions, semantic
+layer, few-shot examples) with the user question last, and the one `cache_control`
+breakpoint on the prefix's **last** block. `src/server/ai/interpret.ts` is the whole of
+it — the live arm `ai/mode.ts` selects, never imported by the keyless path; `ModelQuerySpecSchema` is handed to the API as the output format *and* validates the
+response, so there is no second schema to drift.
 
 **The 512-token cache floor is why two things that look like preferences are not.**
 Opus 5 does not cache a prefix below it, and falling under it fails silently — no
-error, just every question paying uncached cost. So `semantic/movielens.json` stays
-pretty-printed (measured: 2,157 bytes against 1,568 minified; ~540 tokens against
-~390, so the whitespace is what clears the floor), and GA-08's few-shot block is
-never trimmed for cost. Trimming either one *raises* the bill.
+error, just every question paying uncached cost. Measured on the shipped artifacts
+(GA-08): the stable prefix is **7,397 characters, ~1,849 tokens** across three blocks
+with **nine** few-shot examples. The catalogue block alone is ~722 tokens
+pretty-printed and **~456 minified** — under the floor — so
+`semantic/movielens.json` stays pretty-printed (2,363 bytes against 1,719 minified,
+re-measured in `tests/semantic.test.ts`); the examples add ~835 tokens, which is the
+margin. Trimming either one *raises* the bill, and **five few-shot examples is a floor,
+not a target**.
+
+**Assert caching against the request, not a live response.** The prefix being
+byte-identical across two questions, the breakpoint sitting at its end, and the question
+being in `messages` are all properties of the object `interpretRequest()` builds, so
+`tests/ai/interpret.test.ts` checks them with no key and no spend. The live confirmation
+(two identical requests, `cache_read_input_tokens > 0` on the second) is opt-in behind
+**`LIVE_INTERPRET_API_KEY`** and loud-skips otherwise. It is deliberately *not*
+`ANTHROPIC_API_KEY`: that key is the product's, it is present wherever the app runs, and
+a suite that spent it because it was in the environment would put a bill on `npm test`.
 
 ## Testing bar
 
 Vitest over the engine, the pinned guard figures above, the conformance suite,
 an eval set of question → expected-spec pairs including amendment cases,
-rejection tests proving undeclared questions produce a clarifying question, and
+rejection tests proving undeclared questions produce a clarifying question,
+the interpret call asserted against **the request it constructs**, and
 an automated axe pass plus a manual keyboard-only run through ask → amend →
 provenance drawer.
+
+**Two variables decide whether an opt-in suite runs, and neither is the app's key.**
+`CONFORMANCE_DATABASE_URL` decides the second adapter; `LIVE_INTERPRET_API_KEY` decides the
+live interpret check. Both follow the same three outcomes: set and working runs, set and
+failing is a **failure** (never a skip — a suite that downgrades a broken connection goes
+green on the first outage and never goes red again), unset is a **loud skip** naming the
+consequence.
 
 **The conformance suite runs two adapters**, and `CONFORMANCE_DATABASE_URL` is the one
 variable that decides whether the second one runs (architecture §5b). Set and working:

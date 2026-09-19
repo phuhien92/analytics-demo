@@ -91,7 +91,18 @@ export function layerLabels(layer: SemanticLayer, locale = "en"): LayerLabels {
   return { measures: at(layer.measures), dimensions: at(layer.dimensions) };
 }
 
-export function surfaceData(store: Store, layer: SemanticLayer, locale = "en"): SurfaceData {
+/**
+ * `canInterpret` is a parameter rather than a call to `aiMode()` here, for the same
+ * reason the engine never appears in this file: it keeps the first-paint builder a pure
+ * function of the manifest, the layer and one stated fact, so `tests/ui/` can render
+ * both deployments without an environment.
+ */
+export function surfaceData(
+  store: Store,
+  layer: SemanticLayer,
+  locale = "en",
+  canInterpret = false,
+): SurfaceData {
   return {
     dataset: datasetProvenance(store),
     starters: starterCards(layer, locale),
@@ -99,5 +110,6 @@ export function surfaceData(store: Store, layer: SemanticLayer, locale = "en"): 
     locale,
     // Issue #27: fixture until a proactive job exists. Not engine output.
     insight: INSIGHT_BRIEFING_FIXTURE,
+    canInterpret,
   };
 }
