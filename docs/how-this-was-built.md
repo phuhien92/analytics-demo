@@ -1968,7 +1968,11 @@ other implementation rather than by translating it.
 ratings through `COPY … FROM STDIN`, and 19 s for the full conformance suite including both
 adapters. A second run against the same server reuses the loaded data — the fixture fingerprints
 the store and verifies the row counts before trusting what it finds — so only the first pays the
-upload. `npm test` end to end: 146 passed, 1 skipped, 6 files.
+upload. `npm test` end to end, at the time of the run: 146 passed, 1 skipped, 6 files — 190
+passed, 1 skipped, 10 files once this branch was rebased onto GA-05 and GA-07, of which
+`tests/conformance` is 82 passed and 1 skipped. The rebase re-ran both adapters against a local
+Postgres 17.11 and they still agree exactly; the one skip is the loud-skip banner's own test,
+inactive precisely because the second adapter did run.
 
 **The suite reports which server it agreed with**, read from `SELECT version()` rather than from
 configuration. Collation and ordering semantics differ across Postgres majors, so a suite whose
