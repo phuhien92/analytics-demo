@@ -212,7 +212,7 @@ matching it.
 
 **Size** M — one session · **Depends on** GA-01 · **Swappable with** GA-03
 
-**Landed** 2026-09-18. Decisions recorded in
+**Landed** 2026-09-18 · [PR #21](https://github.com/phuhien92/analytics-demo/pull/21). Decisions recorded in
 `docs/how-this-was-built.md` part three; the standing technical record is
 `docs/architecture.md` §2a. From here this definition of done is a record of what was built, not an
 instruction to keep code matching it.
