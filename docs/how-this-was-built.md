@@ -2475,12 +2475,12 @@ compares specs rather than prose precisely so it needs nothing.
 ran the suite without a key, and nothing would have said so — which is the shape of the
 defect it was supposed to catch.
 
-### 60. The few-shot examples are generated from the catalogue, so the prompt names no dataset
+### 60. The few-shot examples are generated from the catalogue, not authored
 
 **Decided.** `fewShotExamples()` builds the block from `STARTER_QUESTIONS` and the semantic
 layer, passing each example through `ModelQuerySpecSchema`. Nine examples ship. The
-instruction text names no measure, no dimension and no dataset, and a test greps the module
-for dataset vocabulary to keep it that way.
+instruction text and the catalogue block carry nothing but the layer they are handed, proved
+by building the prefix from a layer that shares no vocabulary with MovieLens.
 
 **Evidence.** Invariant 6 says nothing dataset-specific belongs in the core types, the
 engine, **or the prompt**. A hand-written block naming `avg_rating` and `genre` would put a
@@ -2493,6 +2493,16 @@ eval earns one, and an authored example would keep teaching the old vocabulary.
 phrasing that generation does not, and pays with a second copy of the catalogue that
 nothing keeps honest. Validating each generated example through the model's own schema
 recovers most of the control: an example cannot teach a shape the runtime would reject.
+
+**The claim was too strong once, and a test caught it.** The first version of this entry said
+the prompt names no dataset. It does: `STARTER_QUESTIONS` carries MovieLens ids, so the
+examples block does too. The behavioural test that replaced a source scan — build the prefix
+from a layer sharing no vocabulary with MovieLens, assert nothing leaks — failed on
+`avg_rating`, which is how the overstatement surfaced. What is true is narrower and is what
+this entry now claims: the instructions and the catalogue block carry only the layer they are
+handed, and generation introduces **no coupling beyond the one `docs/architecture.md` §8
+already declared** for the starter questions. Both halves are asserted now, the second
+specifically so the limit cannot be quietly restated as the stronger claim later.
 
 **Cost of deciding later.** Regenerating an authored block after the layer had grown means
 re-deriving which examples were still true, against a file that had changed for reasons

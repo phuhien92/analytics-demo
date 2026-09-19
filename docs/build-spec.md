@@ -433,12 +433,34 @@ in `docs/architecture.md` §6.
 
 **Delivers.** `ai/interpret.ts` using `client.messages.parse` with `output_config: { format: zodOutputFormat(ModelQuerySpecSchema), effort: "low" }`, importing `zodOutputFormat` from `@anthropic-ai/sdk/helpers/zod` and reading the result off `message.parsed_output`; the stable prefix in `system` carrying a `cache_control` breakpoint — pretty-printed semantic layer plus **at least five** few-shot examples — with the user question last. Freely typed questions now work.
 
-**Done when.**
-- Live suite (skipped without a key): two identical requests → the second reports `usage.cache_read_input_tokens > 0`.
-- A model output naming an undeclared measure produces a `Rejection`; `message.parsed_output` never contains `sort.tieBreak` or `asOf`.
-- `npm run eval -- --live` scores the model path against the same question set, recorded beside the fallback baseline.
-- `grep -rn "output_format" src/` and a grep for assistant prefill → no matches.
-- Recorded: the few-shot count, the measured cached-prefix token size, and the first `cache_read_input_tokens` reading.
+**Done when.** Three of the five are met; **two are outstanding and are listed in §7**, because
+a captain instruction standing over this increment forbids spending the product's API key to
+develop or test it. What is unmeasured is the *confirmation reading*, not the mechanism — see
+the second bullet below for what is asserted instead, and `docs/how-this-was-built.md` entry 60
+for the figures that were taken.
+
+- **OUTSTANDING — the live reading was not taken.** The suite is built and runs two identical
+  requests, asserting `usage.cache_read_input_tokens > 0` on the second; it is opt-in behind
+  `LIVE_INTERPRET_API_KEY` and loud-skips otherwise. No live call was made, so no reading exists.
+- Met, and it is what covers the cost property in the meantime: the caching mechanism is asserted
+  against **the request** in `tests/ai/interpret.test.ts` — the prefix byte-identical across two
+  questions sharing no words, exactly one `cache_control` breakpoint and it on the prefix's final
+  block, the question in `messages` and absent from every prefix block, and the prefix measured at
+  ~1,849 tokens against Opus 5's 512-token floor. These pass with no key and no spend.
+- Met: a model output naming an undeclared measure produces a `Rejection`; `message.parsed_output`
+  never contains `sort.tieBreak` or `asOf` — both absent from `ModelQuerySpecSchema` by
+  construction, so the output schema cannot carry them.
+- **OUTSTANDING — no model score was recorded.** `npm run eval -- --live` is built, scores the
+  same set the same way, and records to `tests/evals/baseline.live.json` beside the fallback
+  baseline; with no key it refuses rather than degrades. It has not been run, so that file does
+  not exist yet.
+- Met, with one nuance stated rather than glossed: `grep -rn "output_format" src/` returns **four
+  matches, all prose** in `ai/interpret.ts` explaining why the parameter is not used. Comments
+  stripped, there are no matches for `output_format`, `role: "assistant"` or `prefill`, and
+  `tests/ai/interpret.test.ts` asserts that mechanically against the comment-stripped source.
+- Met, partially: the few-shot count (**9**) and the measured cached-prefix token size (**7,397
+  characters, ~1,849 tokens** across three blocks) are recorded in entry 60 and in `AGENTS.md`.
+  The first `cache_read_input_tokens` reading is not — see the first bullet.
 
 **Must not.**
 - Use `output_format` — removed from the SDK type surface, not merely deprecated, so it is a compile error. Assistant prefill returns 400 on Opus 5.
@@ -803,6 +825,21 @@ settled it moves to `docs/architecture.md` and leaves this file.
 
 1. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
+2. **GA-08's two live readings, outstanding rather than settled.** Both are *measurements*, not
+   decisions: the machinery is built, opt-in, and loud-skips, and neither figure is claimed
+   anywhere. They are listed here so they are picked up later rather than forgotten.
+   - The **first `cache_read_input_tokens` reading**. Set `LIVE_INTERPRET_API_KEY` and run
+     `npx vitest run tests/ai/live-interpret` — two identical requests, a cache read on the
+     second — then record the reading in `docs/how-this-was-built.md` entry 60's table and
+     tick GA-08's first done-criterion.
+   - The **model path's eval score**. Run `npm run eval -- --live --update-baseline --set-from=...`
+     to write `tests/evals/baseline.live.json`, then record it beside the fallback baseline.
+
+   *Recommendation: take both in one sitting, and take them before GA-09.* GA-09 narrates from
+   the model and will want a model-path baseline to move against; and a caching regression is
+   cheapest to find while the prefix is still the one this increment measured. Neither is
+   urgent — the cost property they confirm is asserted structurally on every run — but both go
+   stale quietly, which is the argument for a date rather than an intention.
 
 **Settled and migrated out.** The **interpret call's shape** — `client.messages.parse` with
 `output_config.format` carrying `zodOutputFormat(ModelQuerySpecSchema)` at `effort: "low"`, a

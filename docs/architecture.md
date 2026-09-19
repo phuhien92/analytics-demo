@@ -854,10 +854,20 @@ build, and would drift from the layer the moment a label changed.
 
 So `fewShotExamples()` builds them from `STARTER_QUESTIONS` and the layer, each one passed
 through `ModelQuerySpecSchema` — an example cannot teach the model a shape the runtime would
-then reject, and a second dataset gets its own examples for free. Every example carries the
-full declared guard set, because `resolveSpec()` fills guards only when the field is
-*absent*: an example showing `guards: []` would teach the model to ask for a genuinely
+then reject, and it cannot drift from the catalogue the zero state renders. Every example
+carries the full declared guard set, because `resolveSpec()` fills guards only when the field
+is *absent*: an example showing `guards: []` would teach the model to ask for a genuinely
 unguarded answer with nothing saying so.
+
+**The limit of that claim, stated rather than implied.** Generation does not make the prompt
+dataset-agnostic on its own, because `STARTER_QUESTIONS` carries MovieLens ids — they are
+product copy, and section 8 records that they live in the parser rather than the layer in v1.
+What generation buys is that the prompt introduces **no coupling beyond the one already
+declared**, and that it moves with the catalogue when the catalogue moves into the layer. The
+instructions and the catalogue block carry nothing but the layer they are handed, which
+`tests/ai/interpret.test.ts` proves by building the prefix from a substituted layer; the
+examples block inherits the starter ids, and a second test asserts exactly that so the limit
+cannot be overstated later.
 
 ### The prefix is measured, and the floor is why the examples are load-bearing
 

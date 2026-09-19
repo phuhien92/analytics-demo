@@ -17,6 +17,7 @@ import {
   stablePrefix,
   type InterpretClient,
 } from "@/server/ai/interpret";
+import { STARTER_QUESTIONS } from "@/server/ai/fallback-parser";
 import { loadSemanticLayer } from "@/server/semantic/load";
 
 /**
@@ -36,13 +37,35 @@ import { loadSemanticLayer } from "@/server/semantic/load";
  */
 
 const layer: SemanticLayer = loadSemanticLayer();
-const SOURCE = readFileSync(
-  join(import.meta.dirname, "..", "..", "src", "server", "ai", "interpret.ts"),
-  "utf8",
-);
 
-/** Comments stripped, so the greps below are about the code and not about its prose. */
-const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+/** A layer sharing no vocabulary with the shipped one, for the invariant-6 checks below. */
+function foreignLayer(): SemanticLayer {
+  return {
+    ...layer,
+    measures: layer.measures.map((measure, index) => ({
+      ...measure,
+      id: `foreign_measure_${index}`,
+      labels: { en: `foreign measure ${index}` },
+      synonyms: {},
+    })),
+    dimensions: layer.dimensions.map((dimension, index) => ({
+      ...dimension,
+      id: `foreign_dimension_${index}`,
+      labels: { en: `foreign dimension ${index}` },
+      synonyms: {},
+    })),
+    // Labels and explanations too, not just ids: the shipped guards explain themselves in
+    // terms of "titles", and a half-substituted fixture would fail on its own leftovers
+    // rather than on anything the prompt builder did.
+    guards: layer.guards.map((guard, index) => ({
+      ...guard,
+      id: `foreign_guard_${index}`,
+      labels: { en: `foreign guard ${index}` },
+      explanation: { en: `Checked foreign guard ${index}.` },
+    })),
+    defaultTieBreak: "foreign_dimension_0",
+  };
+}
 
 /** A client that records what it was handed and returns whatever the case needs. */
 function stubClient(parsed: unknown): InterpretClient & {
@@ -81,11 +104,11 @@ describe("the request that gets sent", () => {
   it("uses neither output_format nor an assistant prefill", () => {
     const request = interpretRequest("anything", layer);
 
-    // `output_format` is gone from the SDK's type surface and prefill returns 400 on
-    // Opus 5, so both are compile errors rather than runtime ones — but a request
-    // rebuilt by hand later would not be, and the grep is what notices.
-    expect(Object.keys(request)).not.toContain("output_format");
-    expect(CODE).not.toMatch(/output_format/);
+    // Asserted on the request that would actually be sent, at every depth — not on the
+    // source text. `output_format` is gone from the SDK's type surface and prefill
+    // returns 400 on Opus 5, so a hand-rebuilt request is the way either could come back.
+    expect(JSON.stringify(request)).not.toContain("output_format");
+    expect(request.output_config?.format).toBeDefined();
     expect(request.messages.every((message) => message.role === "user")).toBe(true);
   });
 
@@ -171,11 +194,47 @@ describe("the few-shot block", () => {
     }
   });
 
-  it("names no dataset in the code, only in the data", () => {
-    // Invariant 6: nothing dataset-specific in the prompt. Every id the examples carry
-    // arrives from the layer and the starter catalogue, so this file's text is the same
-    // for a second deployment.
-    expect(CODE).not.toMatch(/avg_rating|movielens|genre|Streetcar/i);
+  it("keeps the instructions and the catalogue free of any dataset but the one given", () => {
+    /**
+     * Invariant 6, proved against a substituted layer rather than grepped.
+     *
+     * Two of the three prefix blocks must carry nothing but what the caller supplied: the
+     * instructions are written for any deployment, and the catalogue is whatever layer it
+     * was handed. Building the prefix from a layer sharing no vocabulary with MovieLens is
+     * the behavioural form of that — a dataset id written into the instructions would
+     * survive the substitution and show up here, which a source scan could never tell from
+     * the same id sitting in a comment.
+     *
+     * The examples block is deliberately *not* included, and the next test says why.
+     */
+    const [instructions, catalogue] = stablePrefix(foreignLayer());
+    const text = `${instructions?.text ?? ""}\n${catalogue?.text ?? ""}`;
+
+    for (const id of [...layer.measures, ...layer.dimensions].map((entry) => entry.id)) {
+      expect(text).not.toContain(id);
+    }
+    expect(text).not.toMatch(/movielens/i);
+    // And the substitution really did reach the prompt, so this is not vacuous.
+    expect(text).toContain("foreign_measure_0");
+  });
+
+  it("inherits the starter catalogue's ids, which is the dataset coupling v1 already declared", () => {
+    /**
+     * The honest limit of the claim above, asserted so it cannot be overstated later.
+     *
+     * The examples are generated from `STARTER_QUESTIONS`, and those carry MovieLens ids
+     * because they are product copy — `docs/architecture.md` §8 records that they live in
+     * the parser rather than the layer in v1, and that moving them into the layer is what
+     * would let a second dataset ship its own zero state as data. So generation buys two
+     * real things — the examples cannot drift from the catalogue the zero state renders,
+     * and they cannot drift from the contract — but it does **not** make the prompt
+     * dataset-agnostic on its own. It introduces no coupling beyond the one already
+     * declared, and it moves with the catalogue when the catalogue moves.
+     */
+    const examples = stablePrefix(foreignLayer())[2];
+    expect(examples?.text).toContain(STARTER_QUESTIONS[0]?.measure ?? "");
+    // The guards, by contrast, do come from the layer it was handed.
+    expect(examples?.text).toContain("foreign_guard_0");
   });
 
   it("carries every guard the layer declares, with the layer's parameters", () => {
