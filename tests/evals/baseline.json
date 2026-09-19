@@ -1,0 +1,7 @@
+{
+  "path": "fallback",
+  "passed": 19,
+  "cases": 20,
+  "layerVersion": "1.1.0",
+  "setFrom": "the fallback parser against semantic layer 1.1.0; the one failure is p-how-well-reviewed, held open deliberately"
+}

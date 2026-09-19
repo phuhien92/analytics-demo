@@ -1413,6 +1413,199 @@ only in the direction that passes trivially.
 
 ---
 
+## GA-05 — Fallback parser, rejection path, eval harness
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 5 · decisions now standing in
+`docs/architecture.md` §8 and §9
+
+Two of this increment's three pieces carry more weight than their size suggests. The
+rejection path is what turns "the AI never computes the number" from a promise about what
+the model is asked to do into a property of the shape — a question the layer cannot answer
+comes back as a value the surface renders, not an exception something catches. And the eval
+harness is not a testing detail: the layer ships at its thinnest and every later piece of
+structure has to be earned by a failing eval, so the harness *is* the mechanism by which the
+semantic layer grows. Both of those only work if a failure is evidence someone can act on,
+which is why the finding — not the score — is this increment's real deliverable.
+
+### 38. The fallback parser reads declared vocabulary, and its output space is the catalogue
+
+**Decided.** `parseQuestion` matches in two stages: a normalised exact match against the
+starter questions' own text, then a lookup for a declared label or synonym of a starter
+question's measure *and* of its breakdown. Both must occur and exactly one starter may match.
+What comes back is **that starter question's spec** — the parser never composes a new one —
+or a `Rejection`.
+
+**Evidence.** GA-05's must-not forbids general natural-language understanding, and GA-03's
+must-not defers every synonym to "a failing eval in GA-05". Those two pull in opposite
+directions if the parser is a literal string table: nothing a failing eval could add to the
+layer would change what the parser understands, so the loop that is supposed to grow the layer
+would have nothing to close on until GA-08, three increments later. Stage 2 resolves it without
+crossing the must-not, because its dictionary is written by the dataset owner rather than
+inferred: no grammar, no stemming, no edit distance, no scoring. Measured on the layer exactly
+as GA-03 shipped it — no synonyms at all — stage 2 matched only literal label text and the set
+scored **15 of 20**; the five synonyms named cases then earned took it to **19 of 20**.
+
+**Rejected.** Composing a fresh spec from whatever vocabulary was found. It answers more
+questions and it is where coercion gets in: *"which genres have the fewest ratings"* carries
+nothing but declared vocabulary, and a composing parser answers it with the descending
+ranking — the confident wrong answer, produced by the machinery built to catch it. Bounding
+the output space to the catalogue makes that failure unreachable rather than unlikely.
+
+**Later would have cost.** GA-08 replaces stage 2 with the model. Discovering there that
+synonyms had never been consumed by anything would mean the layer had been growing on
+judgement for three increments with no evidence that any addition was load-bearing.
+
+### 39. A word that would flip the answer is a refusal, not a hint
+
+**Decided.** `CONTRARY_TERMS` — locale-keyed, `en` only in v1: *fewest, lowest, worst, least,
+bottom, smallest, poorest*. When stage 2 has matched a starter question and the question also
+carries one of these, the parser refuses and names the word.
+
+**Evidence.** Every starter question ranks or sequences in one declared direction, and a
+question asking for the other end carries exactly the same declared vocabulary. Without this
+rule *"which genres have the fewest ratings"* matches `ratings-by-genre` and returns the
+descending answer with nothing on screen to say the question was inverted. This is the one
+place stage 2 could coerce, so it is the one place a rule was added — and the rule only ever
+makes the parser answer *less*, which is why it is safe to state as vocabulary rather than as
+understanding. It is a committed rejection case, `r-fewest-ratings`, asserted on the reason and
+not merely on the refusal.
+
+**Rejected.** Reading the direction and flipping `sort.dir`. That is interpretation, and a
+parser that interprets one word will be asked to interpret the next. Refusing is also the
+better product: the clarifying question offers the ranking that does exist, and a starter
+question ordered the other way is a catalogue addition a failing eval can earn.
+
+**Later would have cost.** Nothing structural, but it is invisible. A composing parser that
+silently inverts an answer produces no error and no test failure — it is found by a user
+reading a chart, which is the failure mode this product is sold against.
+
+### 40. The harness compares specs, and the finding is the deliverable
+
+**Decided.** `tests/evals/questions.jsonl` maps a question to an expected `QuerySpec`; the
+runner compares them. No model, no prose judging, no key. A failing case emits a **finding**
+that names the missing structure, not a mismatch.
+
+**Evidence.** A harness that judged narration would need a model to run, which puts a price on
+every iteration — and a loop that costs money per run is a loop that gets run less often,
+exactly when the layer most needs it. Spec comparison runs in CI, on a clean clone, and today
+with no key in existence. The finding requirement is the half that is easy to lose: *"expected
+avg_rating, got null"* sends the reader into the layer to work out why, while *"no measure
+matched … — rating_count declares 'number of ratings' and no synonyms in en"* is the sentence
+that earns the synonym. `explain()` distinguishes two failures a single message would blur — an
+expectation naming something the layer does not declare at all, and something it declares under
+no phrase the question uses. They have different fixes.
+
+**Rejected.** A pass/fail runner. C5 (build-spec §6) had already settled this: with pass/fail,
+"ship thin and let failing evals earn structure" and "every increment leaves the repository
+green" contradict one another, and the way teams resolve that contradiction is by deleting the
+failing case — which deletes the evidence the loop runs on.
+
+**Later would have cost.** GA-08 scores the model path against the same lines. A harness whose
+expectations were prose would have had to be rewritten to compare specs at exactly the moment a
+second interpreter arrived, and the fallback baseline would not have been comparable to it.
+
+### 41. The committed baseline is below 1.00, and one case is held open on purpose
+
+**Decided.** `tests/evals/baseline.json` commits **19 of 20** against layer 1.1.0.
+`p-how-well-reviewed` — *"How well reviewed are our movies?"* — fails, and is left failing.
+
+**Evidence.** "How well reviewed" is a judgement *about* a measure, not a name for one.
+Declaring it a synonym of `avg_rating` is a product decision about what the dataset owner means,
+and making it by reflex to turn the score green is precisely the nearest-match coercion
+invariant 4 exists to remove. Leaving it failing costs nothing — `npm test` is green and
+`--check-baseline` passes at the committed ratio — and it keeps one worked example of the loop
+visible in the repository rather than described in a document. A baseline of 1.000 would say the
+set had been trimmed to what already passes.
+
+**Rejected.** Removing the case, and adding the synonym. The first hides the backlog; the
+second decides a product question to move a number.
+
+**Later would have cost.** Little, in itself. But a set that only ever contains passing cases
+stops being an eval set and becomes a regression suite, and the difference is whether anyone can
+see what the product cannot yet do.
+
+### 42. Node is given the resolver the bundler already had
+
+**Decided.** `scripts/module-alias.mjs`, ~30 lines, loaded by `npm run eval` through
+`node --import`. It resolves `@/x` under `src/` and fills in a missing `.ts` or `/index.ts` on a
+relative specifier, and defers everything else to Node.
+
+**Evidence.** The eval loop has to run on a clean clone with no key, no build step and no runner
+dependency — the same bar `npm run ingest` already meets. But the harness reads `resolveSpec` and
+the semantic loader, and everything under `src/server/` outside `ingest/` is written for a
+bundler: it imports through the `@/` alias and omits extensions. Node's ESM resolver knows
+neither convention, and its TypeScript stripping does not add one. Both conventions are already
+declared twice — in `tsconfig.json` and again in `vitest.config.ts` — so this is a third mirror
+of one declaration for the one runtime that has no resolver of its own.
+
+**Rejected.** Adding `tsx` or `ts-node`, which breaks the zero-config `npm install` the project
+is sold on for a script that runs in under a second. And rewriting the twelve modules in the
+harness's import graph to relative `.ts` specifiers, which would drag GA-01, GA-03 and GA-04
+files into this increment's diff and collide with GA-06 working in the same tree.
+
+**Later would have cost.** GA-08 adds `--live` to the same runner and GA-16 puts it in the
+release gate. Discovering at either point that the runner could not import the app's own modules
+would mean choosing between a build step and a rewrite, under time pressure.
+
+### 43. The key-presence branch is a branch, and the live arm is injected
+
+**Decided.** `ai/mode.ts`: `aiMode(env)` reads the key once, and `selectInterpreter(live, env)`
+returns the live interpreter only when a usable key *and* a live arm are both present. GA-08
+passes its interpreter in; this increment passes `null`.
+
+**Evidence.** "The app degrades rather than breaks" is only a property if it is decided rather
+than caught. A try/catch around an SDK call degrades for the failures somebody remembered to
+catch, and it cannot tell *no key* from *the request failed* — two facts the user is owed
+differently (`docs/design.md` §8). Injecting the live arm keeps the SDK off the no-key path's
+import graph, which is the one path that must work with nothing but the declared dependencies,
+and it is why the branch is fully testable in an increment that ships no model call at all. A
+whitespace-only key reads as absent: `.env.example` ships `ANTHROPIC_API_KEY=`, so a clean clone
+that copies it has the variable *set* and no key, and a truthiness check would send that clone to
+a 401.
+
+**Rejected.** Importing `interpret` here and guarding the call site. It reads the same and it
+puts GA-08's module — and its key handling — on the keyless path's import graph.
+
+**Later would have cost.** GA-07 assembles `degraded` into the answer object and GA-13 renders
+the one-time inline note from it. A `degraded` flag derived from a caught exception would be set
+after the failure rather than before the request, which is one increment too late for the route
+to report it.
+
+### What the increment also measured
+
+**The layer as GA-03 shipped it scores 15 of 20; the five synonyms it earned take it to 19.**
+Measured by running the committed set against the layer with every synonym stripped. That is the
+thinnest-viable decision paying out for the first time — and the number is worth keeping, because
+"the layer grew" is the kind of claim that is easy to assert and easy to stop checking.
+
+**Every one of the five synonyms is load-bearing, asserted mechanically.**
+`tests/evals/harness.test.ts` removes each declared synonym in turn and requires the score to
+fall. Build-spec §8.3 warns that the discipline "decays into 'added because it seemed useful'",
+and a comment cannot hold that line: a synonym nothing fails without is one nobody earned. This
+is also why GA-03's `ships no synonyms` test did not simply get deleted — the latch moved from a
+count to an earning test, which is a stronger statement than the one it replaced.
+
+**One synonym paid for two cases.** `title: "movies"` was earned by `p-best-rated-movies`, and
+`p-highest-average-rating` then passed on it plus a label already declared. The case notes record
+which eval earned what, including the two that earned nothing.
+
+**`p-average-rating-each-genre` passes with no synonyms at all.** It reaches `avg_rating` and
+`genre` through their declared labels, which is what the layer looked like before this increment.
+Without a case like it, every paraphrase in the set would have depended on something added here,
+and stage 2 would have looked like a mechanism invented to justify its own additions.
+
+**The semantic layer is now 2,363 bytes pretty-printed against 1,719 minified**, up from GA-03's
+2,157 and 1,568 — the five synonyms. Re-measured rather than left to drift: the figure is quoted
+in `tests/semantic.test.ts` as the evidence for pretty-printing clearing Opus 5's 512-token cache
+floor, and a measured number that no longer matches its file is the kind of claim this product
+exists to argue against. The change moves in the safe direction, further above the floor.
+
+**The layer's version went 1.0.0 → 1.1.0.** Saved recipes are keyed by `layerVersion` (build-spec
+§7), and vocabulary is what decides whether a question reaches a measure. A synonym addition is a
+layer change even though no measure, dimension or guard moved.
+
+---
+
 ## Keeping this current
 
 This document is the project's running record, not a retrospective.

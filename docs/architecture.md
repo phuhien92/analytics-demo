@@ -695,6 +695,68 @@ What the user is shown for each error case is in `docs/design.md` section 8.
 
 - **AI unavailable** → fallback parser; the app degrades, it does not break.
 
+### The branch is on key presence, taken once, before any request
+
+`ai/mode.ts`. `aiMode(env)` reads `ANTHROPIC_API_KEY` and returns `live` or `degraded`;
+`selectInterpreter(live, env)` returns the live interpreter only when a usable key **and**
+a live arm are both present, and the fallback parser otherwise.
+
+**A branch, not a caught exception.** A `try`/`catch` around an SDK call degrades only for
+the failures somebody remembered to catch, and it cannot distinguish *no key* from *the
+request failed* — two facts the user is owed differently. Deciding once, on a fact that
+cannot change mid-request, is what makes "degrades rather than breaks" checkable rather
+than accidental. A whitespace-only value reads as absent, because `.env.example` ships
+`ANTHROPIC_API_KEY=` and a clean clone that copies it has the variable set and no key.
+
+The live arm is **injected, not imported**: GA-08 owns the model call, and importing it
+here would put the SDK on the import graph of the one path that must work with nothing but
+the declared dependencies.
+
+### The fallback parser matches declared vocabulary, and nothing else
+
+`ai/fallback-parser.ts`. Two stages, and its entire output space is the starter questions'
+specs plus a `Rejection` — it never composes a spec that is not already in the catalogue.
+
+1. **The catalogue.** A normalised exact match (lowercased, punctuation to spaces,
+   whitespace collapsed) against a starter question's own text.
+2. **Declared vocabulary.** Failing that, a lookup for a declared label or synonym of a
+   starter question's measure *and* of its breakdown dimension. Both must occur, exactly
+   one starter question may match, and the result is that starter question's spec.
+
+No grammar, no intent classification, no stemming, no edit distance, no number or date
+extraction. Stage 2 is a dictionary the dataset owner wrote, not language understanding:
+against the layer with its synonyms stripped it matches only literal label text. It exists
+because the layer ships thinnest-viable and every synonym is earned by a failing eval — a
+parser that could not read a synonym would leave that loop with nothing to close on until
+the model path arrives.
+
+**`CONTRARY_TERMS` is a refusal rule.** Every starter question ranks or sequences in one
+declared direction, so a question asking for the other end carries the same declared
+vocabulary. *"Which genres have the fewest ratings"* would otherwise match the descending
+ranking and answer it. The parser refuses instead, naming the word. The rule only ever
+makes the parser answer less, and it is locale-keyed like every other piece of vocabulary.
+
+**Starter questions live in the parser, not the layer, in v1.** They are product copy and
+the source the zero state renders; the layer's schema declares measures, dimensions and
+guards, and a sixth top-level field is a semantic-layer change rather than a parser one.
+Moving them into the layer is the natural next step — it is what would let a second dataset
+ship its own zero state as data.
+
+### The rejection is a returned value
+
+Two builders, answering two different failures, deliberately not merged: `engine/resolve.ts`
+rejects a *spec* naming an undeclared id, and `ai/fallback-parser.ts` rejects a *question*
+with no place in the catalogue. Only the second has starter copy to offer, so its `nearest`
+carries real starter questions — ranked towards whatever measure or dimension did match —
+rather than synthesised phrasings, because the user is going to tap one.
+
+Neither throws. An exception cannot carry the clarifying question or its options; it gets
+caught somewhere generic and rendered as an error, which is the product failing rather than
+the product working. `tests/rejection.test.ts` asserts the returned object, including that
+every offered `nearest.spec` actually executes — a spec can validate and still name
+something the adapter cannot compute, which is the difference between a suggestion and an
+offer.
+
 ## 9. Testing
 
 - **Contract tests** over `contracts/`. No data and no network: that a spec carrying
@@ -722,9 +784,36 @@ What the user is shown for each error case is in `docs/design.md` section 8.
   is the artifact that proves the product's central promise.
 - **Eval set** of question → expected-spec pairs, including amendment cases
   (spec + follow-up → expected patch). Anthropic's reported lesson was that evals, not
-  model choice, drove accuracy.
-- **Rejection tests** — questions the semantic layer cannot answer must produce a
-  clarifying question, never a coerced near-match.
+  model choice, drove accuracy. `tests/evals/questions.jsonl`, run by `npm run eval`.
+  Four things about it are decisions rather than details:
+  - **It compares specs, not prose, so it needs no API key.** It runs in CI, on a clean
+    clone, and it ran before any model call existed. A loop that costs money per run is a
+    loop that gets run less often, exactly when the layer most needs it. The interpreter is
+    a parameter, so the same lines score the model path when one exists.
+  - **A failure names the missing structure.** Not "expected avg_rating, got null" — that
+    turns every iteration into an investigation. The runner distinguishes an expectation
+    naming something the layer does not declare (`no measure matched "revenue" — declared
+    measures are …`) from something it declares under no phrase the question uses
+    (`rating_count declares "number of ratings" and no synonyms in en`). Different fixes.
+  - **It is scored against a committed baseline**, `tests/evals/baseline.json`, not
+    pass/fail. Under pass/fail, "ship thin and let failing evals earn structure" and "every
+    increment leaves the repository green" contradict each other, and the contradiction gets
+    resolved by deleting the failing case — which deletes the evidence. The baseline records
+    the ratio, the layer version it was measured against, and what it was set from;
+    `--check-baseline` exits 1 below it, comparing cross-multiplied rationals so an exact
+    match never fails on a float's last bit.
+  - **A case may be left failing.** The committed set carries one, and the baseline is
+    below 1.000 because of it. A baseline of 1.000 says the set was trimmed to what already
+    passes.
+- **Every declared synonym is load-bearing**, asserted mechanically:
+  `tests/evals/harness.test.ts` removes each in turn and requires the eval score to fall.
+  The layer grows throughout the build by design, and a comment cannot hold the line that
+  each addition was earned — a synonym nothing fails without is one nobody earned.
+- **Rejection tests** (`tests/rejection.test.ts`) — questions the semantic layer cannot
+  answer must produce a clarifying question, never a coerced near-match. Asserted on the
+  returned object: that it validates, that it names what is missing and what is declared,
+  and that every `nearest` spec it offers actually executes. A test asserting only
+  `toThrow()` would pass against exactly the design this avoids.
 - **Accessibility checks** — automated axe pass on the main flow, plus a manual
   keyboard-only run through ask → amend → open provenance drawer. The data table
   behind each chart is asserted present and reachable.
@@ -746,6 +835,17 @@ the node-executed chain (`scripts/` and `src/server/ingest/`) carries an explici
 extension — Node resolves no others; and `erasableSyntaxOnly`, so an `enum` or a
 parameter property landing anywhere in the project fails at `tsc` rather than at the next
 `npm run ingest`.
+
+**`npm run eval` runs on the same native stripping, through one extra file.** Everything
+under `src/server/` outside `ingest/` is written for a bundler — it imports through the `@/`
+alias and omits file extensions — and Node's ESM resolver knows neither convention. Both are
+already declared twice, in `tsconfig.json` and again in `vitest.config.ts`;
+`scripts/module-alias.mjs` is a third mirror of that one declaration for the one runtime
+with no resolver of its own. It is ~30 lines on `module.registerHooks`, loaded by
+`--import`, resolving `@/x` under `src/` and filling in a missing `.ts` or `/index.ts` on a
+relative specifier, and deferring everything else to Node. It adds no dependency and no
+build step, which is the point: `tsx` or `ts-node` would break the zero-config
+`npm install` this project is sold on, for a script that runs in under a second.
 
 **Versions are pinned exactly, not by range**, so a clean clone resolves what was
 verified: React 19.2.8 (the version the shadcn verification below ran against, and what
