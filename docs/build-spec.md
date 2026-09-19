@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 and GA-02 have landed; the remaining fourteen ticks below are empty.
+**Status: in progress.** GA-01, GA-02 and GA-03 have landed; the remaining thirteen ticks below are empty.
 
 ## What this document is
 
@@ -238,7 +238,10 @@ instruction to keep code matching it.
 
 **Size** S — half a session · **Depends on** GA-01 · **Swappable with** GA-02
 
-**Landed** — not yet.
+**Landed** 2026-09-18 · [PR #19](https://github.com/phuhien92/analytics-demo/pull/19). Decisions recorded in
+`docs/how-this-was-built.md` part three; the standing technical record is `docs/architecture.md` §3
+and §4. From here this definition of done is a record of what was built, not an instruction to keep
+code matching it.
 
 > **C4 settled: Disclose in the trust report's coverage line, no fifth guard** — The thirteen undated titles. See §6.
 
@@ -716,13 +719,10 @@ What changed in the spec:
 Open choices, each with a recommendation. **This list empties as the build proceeds:** as each is
 settled it moves to `docs/architecture.md` and leaves this file.
 
-1. **The materiality threshold** for `materiallyDifferent`: any change in the top-`limit` row-set
-   membership, or a measure delta of at least one presentation step. Declared in the layer, not the
-   engine.
-2. **SQLite driver:** `node:sqlite` (which still prints an `ExperimentalWarning` on Node 22),
+1. **SQLite driver:** `node:sqlite` (which still prints an `ExperimentalWarning` on Node 22),
    CI-only, warning suppressed in the test runner. `better-sqlite3` adds a native build to a project
    whose selling point is a zero-config `npm install`.
-3. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
+2. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
 
 **Settled and migrated out.** `MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
@@ -731,7 +731,9 @@ measurement that grounds them, and the Vitest pin — both settled by GA-01 and 
 provenance and in the manifest; unix seconds inside the store, where the comparison happens —
 settled by GA-02 and now standing in `docs/architecture.md` §2a, along with the second timestamp
 that came with it: `asOf` is when the data arrived, `lastEventAt` is the latest event in it, and
-they are different facts.
+they are different facts. **The materiality threshold** — `minValueDelta: 0.01`, one global value in
+the layer rather than one per measure — settled by GA-03 and now standing in
+`docs/architecture.md` §3.
 
 ---
 
