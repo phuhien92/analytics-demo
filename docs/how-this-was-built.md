@@ -386,7 +386,7 @@ silently assumed a secondary sort its own `QuerySpec` could not express.
 
 This also made a stated demo must-have — the same question asked several ways returning
 byte-identical numbers — **unachievable by construction**. Once the tie-break was declared on
-both sides, the typed-array and SQLite adapters returned byte-identical rows.
+both sides, the typed-array and Postgres adapters returned byte-identical rows (GA-06).
 
 **Rejected.** Leaving the tie-break to adapter convention. An optional tie-break is no
 tie-break.
@@ -421,8 +421,8 @@ Both correct. They answer different questions — and note that Shawshank's aver
 always returns the same numbers"* is simply false once data arrives.
 
 The fix restores the claim in a **stronger** form, because it is checkable under conditions the
-original silently excluded. Verified: at a fixed as-of point, the typed-array and SQLite
-adapters agree exactly at both 2007 and 2018, and a case pinned at the old as-of still passes
+original silently excluded. Verified: at a fixed as-of point, the typed-array and Postgres
+adapters agree exactly at both 2007 and 2018 (GA-06), and a case pinned at the old as-of still passes
 after the later data arrives.
 
 **Rejected.** Spec-only (cannot say what "latest" meant, so a shared answer cannot be
@@ -1780,6 +1780,209 @@ Named Desire* at 4.47 from 20 ratings, `min_evidence` reporting 8,440 titles exc
 serialised and read back off the wire.
 
 ---
+
+## GA-06 — Proof suite: conformance, second adapter, replay, paraphrase
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 6 · decisions now standing in
+`docs/architecture.md` §5b
+
+GA-06 is where the central claim stops being a property of one implementation. Everything
+before it proved that *this* engine is deterministic; a single adapter agreeing with itself
+is not evidence that the `QuerySpec` is portable, and it cannot be, because there is nothing
+for it to disagree with.
+
+The increment found a real defect in shipped code within an hour of the second adapter
+existing, which is the whole argument for building it (entry 49). It also found four places
+where two engines quietly diverge, none of which had been anticipated in the plan.
+
+### 48. The second adapter is Postgres, reached by one connection string
+
+**Decided.** `warehouse/postgres-store.ts` compiles the same `QuerySpec` to SQL and runs it
+against whatever `CONFORMANCE_DATABASE_URL` names — a local server, a Supabase project, any
+other Postgres. No embedded engine, no container, no second variable and no mode flag.
+
+**Evidence.** The build spec said SQLite; the captain changed it during the increment, and
+the change costs nothing because it is the same work in the same place. What it buys is the
+difference between "there is a swappable seam" and "two entirely different engines produce
+byte-identical numbers from the same portable query description" — the claim no competitor
+in `docs/market-research.md` is making. Supabase *is* Postgres, same wire protocol and same
+SQL, so the hosted and local cases differ only in the string; everything that varies between
+them — TLS, port, credentials — is already expressible there. A branch in the adapter would
+have been a branch with nothing behind it.
+
+An earlier draft of this increment ran the suite on **PGlite**, the Postgres source compiled
+to WebAssembly, which reports `PostgreSQL 18.3 … on wasm32-unknown-emscripten` and needs
+nothing but `npm install`. It was measured and it worked — the defect in entry 49 was found
+on it — and it was removed when the captain chose a server, because keeping it as a fallback
+would have made the loud-skip path dead code and the suite would always have appeared to
+prove two adapters.
+
+**Rejected.** *testcontainers*: a genuine server, but it needs Docker running, and on a
+machine without it the suite cannot run at all — which puts pressure on exactly the skip the
+increment's must-not forbids. *A CI service container only*: free in GitHub Actions and
+unavailable on a laptop, so the adapter would be proved only where nobody reads the output.
+
+**Later would have cost.** The adapter holds no driver — it imports `@/server/contracts` and
+its own sibling types and nothing else, issuing SQL through a one-method `SqlClient`. That
+was written for PGlite and then pointed at `pg` without changing a line, which is the same
+property that will let it be pointed at a real deployment's client later.
+
+### 49. A member is its label *and* its id, and one adapter could not have found that out
+
+**Decided.** `local-store.ts` keys its member map on `(memberId, key)`, not on the label.
+Standing in `docs/architecture.md` §5.
+
+**Evidence.** This is the finding the increment exists to produce, and it arrived as a
+disagreement rather than as a review comment. On five of fourteen cases the two adapters
+returned **identical rows** and different bookkeeping: the local adapter reported
+**9,737 members where the store declares 9,742 titles**, and `includedObservations` differed
+by 3 on the guarded hero query. The cause is that five MovieLens title strings are each
+shared by two different `movieId`s — a fact `AGENTS.md` already records — and the local
+adapter's `Map` key was the label, so it merged them and pooled two films' ratings under one
+row. `GROUP BY name, movie_id` kept them apart.
+
+It is the same fact the ordering rule already rests on: the rule ends in `memberId ASC`
+*because* the declared tie-break is not unique (entry 36). An adapter that then merges on the
+tie-break undoes one layer down what the ordering rule established. Merging two entities the
+source distinguishes is silent coercion — invariant 4's failure mode, arriving through a
+`Map` key rather than through a type.
+
+**Rejected.** Pinning the corpus at 9,737 and calling the two adapters "agreed on the rows".
+The brief for this increment names that move and forbids it: a case that passes in-process
+and fails on Postgres is a finding about the engine, not a case to loosen. It would also have
+inverted the increment — writing an expectation only one adapter can meet, in the file whose
+job is to make that impossible.
+
+**Later would have cost.** The hero rows were unaffected, so nothing user-facing was wrong
+today. But coverage is what the trust strip renders, and GA-12 builds the catch on top of it;
+the defect would have surfaced as a wrong denominator in a screen, months after the code that
+caused it, with no test able to see it. `npm test` was green before and after the fix.
+
+### 50. The suite fails when asked for the second adapter and cannot get it, and skips loudly when it was not asked
+
+**Decided.** Three outcomes. Variable set and working: both adapters run and must agree.
+Variable set and unreachable: **failure**. Variable unset: a **loud skip** that names the
+consequence — the determinism claim is unproven on that run.
+
+**Evidence.** GA-06's own must-not is *skip the second adapter because one passes*, and the
+captain restated it when the target moved to a hosted database, because most people who clone
+this will not have credentials. The two halves answer different failures. A silent skip on a
+broken connection is how a suite rots into decoration: it goes green on the first outage and
+never goes red again, so the failure that matters is the one nobody is told about. An absent
+variable is not a failure of anything — nobody asked for the second adapter — but reporting
+"46 passed" and nothing else would let a reader conclude the opposite of what was checked.
+
+The banner is written with `writeSync` to file descriptor 1. Measured: piped to a file,
+Vitest's default reporter **drops `console` output from files that pass** and prints it only
+when something in them fails. The first version used `console.warn`, printed perfectly on a
+terminal, and printed nothing at all when redirected — a loud skip that was loud only where
+it did not matter, which is the quiet pass the must-not forbids wearing yet another disguise.
+
+**Rejected.** Failing when the variable is absent. It was the first design, and it is wrong
+for the population: a suite that cannot run at all on a clean clone is worse than one that
+runs what it can and says plainly what it did not check.
+
+### 51. The corpus is pinned at three explicit as-of points, and a test enforces it
+
+**Decided.** Every case carries a non-null `asOf`, drawn from three declared points:
+`2018-09-25` (the hero moment), `2007-08-02` (the replay) and `2018-09-26` (the delivery's own
+`receivedAt`). `corpus.test.ts` asserts it for every case *and* every paraphrase input, and
+asserts that all three points are actually used.
+
+**Evidence.** `asOf: null` means "latest". A case pinned at latest does not fail when the next
+payload lands — **it passes against different data**, which is this product's own failure mode
+aimed at its own proof. The third point exists because two arbitrary moments do not exercise
+the watermark at the boundary the manifest declares; the delivery as-of does.
+
+Each case also writes out its guards in full rather than borrowing them from the layer, and
+pins its whole trust report — coverage and notes, not only rows. `corpus.test.ts` asserts the
+written-out guards still match `semantic/movielens.json`, so a threshold moving in the layer
+cannot change what a pinned number means without failing loudly. It is `AGENTS.md`'s rule for
+the pinned figures, applied to the corpus: a figure without its definition is not a pinned
+figure.
+
+**Later would have cost.** The corpus is the artifact behind the central claim. A single
+unpinned case in it is worth less than no case, because it looks like proof.
+
+### 52. The paraphrase set is pinned at the spec layer, and says what it does not yet prove
+
+**Decided.** Five phrasings of *"What are our top rated titles?"*, each carried with the
+loosely-shaped input a parser would emit, resolved through `resolveSpec()` and asserted to
+produce one identical `QuerySpec` and byte-identical rows — on every adapter.
+
+**Evidence.** GA-06 depends only on GA-04, and GA-05 (the fallback parser) was running in
+parallel on its own branch. Nothing here can map English to a spec yet, and pretending
+otherwise would have made the target's "N phrasings produce one byte-identical `ResultSet`"
+true by writing the same input five times. The variation is real instead: one input names the
+sort, one does not; one names the guards, one lets them default; one spells the tie-break, one
+leaves it to the layer. That is where paraphrases actually differ once a parser exists.
+
+The seam is the `ResolveInput`. With a parser in front of it — GA-05 has since landed — the
+same corpus becomes the end-to-end paraphrase test and only that one field changes.
+
+**Rejected.** Waiting for GA-05. The two were declared a dependency-safe swap pair and were
+built in parallel; blocking on it would have made the pair fictional.
+
+### What the increment also measured
+
+**Four places where two engines diverge, none of them anticipated by the plan.** All four are
+kept executable in `tests/conformance/suite.test.ts`, running the wrong expression beside the
+pinned one, and all four are written up in `docs/architecture.md` §5b.
+
+**The session time zone is inherited, not neutral — and this is the one that would have been
+missed.** `EXTRACT(YEAR FROM to_timestamp(at))` renders in the session's `TimeZone`, which
+Postgres takes from its host. A cluster initialised fresh on this machine chose
+`America/Los_Angeles` without being asked, and PGlite reported `Etc/GMT+8` with no `TZ` set
+anywhere. A rating an hour either side of a UTC new year is then filed under the wrong year,
+with no error and no warning. The adapter pins `AT TIME ZONE 'UTC'`, and the suite runs the
+**entire** Postgres corpus under `Pacific/Kiritimati` (UTC+14) so the pinning is proved rather
+than trusted. The demonstration test itself failed on its first attempt, because the instant
+it chose — the UTC new year exactly — does not diverge in a *positive*-offset zone; it takes
+two instants, one either side, to state the hazard without depending on the sign of the
+offset.
+
+**Collation is the database's, not the engine's.** `'Til There Was You (1997)` orders before
+`¡Three Amigos! (1986)` by UTF-16 code unit and after it under `und-x-icu`. That is the
+disagreement `AGENTS.md` already records for `localeCompare`, arriving from a database instead
+of a runtime — and it **cannot reach a result, because the adapter never orders**. The
+GA-04 decision to leave ordering entirely in the engine was argued on determinism grounds
+before a second engine existed; this is the measurement that was missing from it.
+
+**`SUM()` over no rows is NULL, not zero**, so the eighteen titles nobody rated came back with
+a null numerator until `COALESCE` was stated. **The uncategorised sentinel is unrepresentable
+in Postgres**: `UNCATEGORISED_KEY` begins with U+0000 and `text` cannot hold a NUL byte, so it
+is reconstructed in JS from the `uncategorised` flag the boundary already carries. That flag
+is what `exclude_uncategorised` actually reads — had the guard keyed on the string, the second
+adapter could not have implemented the guard at all. **Counts arrive as `bigint`**, which `pg`
+hands back as a string and other drivers as a number or a `BigInt`; the adapter converts in one
+stated place and refuses anything outside the safe integer range.
+
+**Filter comparisons are type-strict on one side only.** The local adapter compares with `===`
+and requires both sides to be numbers for `gte`, `lte` and `between`; Postgres will happily
+compare text with `>=` under its collation. The SQL adapter emits `FALSE` for a comparison the
+local adapter refuses, so the two disagree on no filter — a divergence avoided by reading the
+other implementation rather than by translating it.
+
+**What the run cost, measured rather than estimated.** Against a local Postgres 17.10:
+**34 ms** to connect, **1,473 ms** to load 9,742 titles, 22,050 genre assignments and 100,836
+ratings through `COPY … FROM STDIN`, and 19 s for the full conformance suite including both
+adapters. A second run against the same server reuses the loaded data — the fixture fingerprints
+the store and verifies the row counts before trusting what it finds — so only the first pays the
+upload. `npm test` end to end, at the time of the run: 146 passed, 1 skipped, 6 files — 190
+passed, 1 skipped, 10 files once this branch was rebased onto GA-05 and GA-07, of which
+`tests/conformance` is 82 passed and 1 skipped. The rebase re-ran both adapters against a local
+Postgres 17.11 and they still agree exactly; the one skip is the loud-skip banner's own test,
+inactive precisely because the second adapter did run.
+
+**The suite reports which server it agreed with**, read from `SELECT version()` rather than from
+configuration. Collation and ordering semantics differ across Postgres majors, so a suite whose
+job is proving two engines agree has to be able to say which engine, or a divergence found later
+is unattributable.
+
+**Two stale forward references were corrected in this document.** Entries 23 and 25 each
+claimed that "the typed-array and SQLite adapters" agreed — written in GA-01 and GA-02, before
+any second adapter existed, about an adapter that was never built. The claims are now true of
+Postgres and say so; the entries are otherwise untouched.
 
 ---
 
