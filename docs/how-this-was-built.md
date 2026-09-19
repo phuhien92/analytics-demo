@@ -1986,6 +1986,249 @@ Postgres and say so; the entries are otherwise untouched.
 
 ---
 
+## GA-10 — The surface: shell, zero state, answer card
+
+**2026-09-19** · `docs/build-spec.md` §3 increment 10 · decisions now standing in
+`docs/architecture.md` §11, with the layout addition in §1
+
+The first increment a person looks at, and the one that turns five increments of contracts,
+stores, engines and routes into something with a screen. It also lands under a scope
+decision taken during it — the build stops after GA-11, at position 12 — which is recorded
+as `docs/build-spec.md` §0 and which changed two of this increment's own deliverables. Most
+of what follows is about the same tension in different places: the design settled what this
+surface *looks like*, and the invariants settle what it is *allowed to say*, and every
+decision below is where those two met.
+
+### 48. The demo stops after GA-11, because the app answers questions without a model
+
+**Decided.** Six of the sixteen increments — GA-08, GA-09, GA-13, GA-14, GA-15, GA-16 — are
+deferred rather than cancelled, and the build order becomes GA-01…GA-07, then GA-10, GA-12,
+GA-11. Recorded as `docs/build-spec.md` §0, marked `post-mvp` on the issue tracker, and
+called out in the status line so six unticked increments do not read as an abandoned build.
+
+**Evidence.** One fact about the dependency column, not a preference. GA-10 depends on
+GA-07; GA-12 and GA-11 depend on GA-10. None of the three reaches across GA-08 or GA-09. And
+invariant 1 is what makes that survivable rather than a compromise: the model never produces
+a figure, so the deterministic path and the model path differ in *language*, not in
+arithmetic. GA-05's fallback parser covers the starter questions, GA-07's template writes
+the takeaway, and the hero moment — 296 titles tied at 5.00 naively against *A Streetcar
+Named Desire* at 4.47 from 20 ratings honestly — is reachable with no API key at all.
+
+**Rejected: cutting the surface increments instead and shipping the model path.** It
+inverts the dependency graph: GA-08 and GA-09 have nothing to render into, so the demo would
+be a `curl` transcript. The wedge is a screen that catches a wrong answer, and the catch is
+GA-12.
+
+**Cost of deciding later.** The three surface increments are the ones a reviewer sees, and
+deferring them to build two model calls first would have spent the whole budget on the half
+of the product that invariant 1 says cannot produce a number.
+
+### 49. The design system's tokens replace shadcn's theme, rather than layering over it
+
+**Decided.** `shadcn init -b radix -p nova` wrote a neutral greyscale house style into
+`src/app/globals.css`; it was deleted. Every colour, radius, type step and duration in the
+app is a `--ga-*` token from `design-system/styles.css`, declared on `:root` and mapped onto
+the semantic names shadcn's components read. `@theme inline` re-exports both vocabularies,
+the design system's under a `ga-` prefix.
+
+**Evidence.** Invariant 14 is explicit that the theme *is* the approved look, and the failure
+mode of the alternative is specific: a theme layered over shadcn's defaults leaves the
+defaults reachable, so any component added later arrives grey and nobody notices until it is
+beside a blue one. Two mappings needed thought. `--accent` is the *quiet* ground in shadcn's
+vocabulary and the single strong emphasis colour in the design system's, so it maps to
+`--ga-accent-soft` and the strong colour is exposed separately. And
+`@custom-variant dark (&:is(.dark *))` was kept although nothing sets `.dark`: deleting it
+does not remove dark mode, it restores Tailwind v4's `prefers-color-scheme` default, and
+every `dark:` utility inside the shadcn components would then fire on a machine set to dark.
+
+**Measured, and not adopted as drawn.** The approved mock uses `--accent:#5B45D6`.
+`design-system/README.md` records that landing the tokens moved the accent to `#0A6FD1` and
+`--ga-ink-muted` to `#655F7C`, because two measured contrast defects were fixed at the token
+definition — `--ga-ink-muted` was failing WCAG 2.1 AA on `--ga-sunken` by 0.0014. The
+surface inherits the fixes rather than the drawing, so the shipped colour is not the
+screenshot's colour and that is deliberate.
+
+**Rejected: shadcn's Geist default typeface.** The design system declares IBM Plex Sans and
+Mono. Loaded through `next/font/google` rather than the design system's own `@import
+url(...)`, which is a render-blocking third-party round trip on every page load.
+
+**Cost of deciding later.** Retheming after four more screens exist means auditing every
+component for a default that leaked through, which is exactly the audit the invariant exists
+to avoid.
+
+### 50. Three shadcn components, and the one element the claim rests on is not one of them
+
+**Decided.** `card`, `button` and `badge` were installed. Nine others were verified in
+`docs/architecture.md` §10 and were not. The semantic `<table>` behind every chart is plain
+markup.
+
+**Evidence.** Invariant 14's "each component is earned" is a rule about the catalogue, and the
+table is the interesting case rather than the obvious ones. shadcn's table nests the
+`<table>` inside a scroll container with its own data-slots — four utility classes' worth of
+styling, in exchange for putting a `<div>` between the `<figure>` and the single element
+this increment's accessibility claim depends on. The trade is not worth making for the one
+element a test has to find and a screen reader has to reach.
+
+The starter chips are the other case: they look like cards and they are `<button>`s, because
+they are activated. A `<div role="button">` would re-implement Enter, Space and the focus
+ring that `:focus-visible` already gives every control for free.
+
+**Rejected: installing the verified set.** §10 verified nine components so the *decision* to
+use shadcn would rest on evidence; it was never a shopping list.
+
+**Cost of deciding later.** None, in the sense that a component can always be added. The
+cost is the other direction: a catalogue installed now is a catalogue that has to be
+maintained, audited for theme drift, and explained.
+
+### 51. The chart's form comes from the spec, and its axis starts at zero even when that looks flat
+
+**Decided.** A spec ordered by its measure renders as horizontal bars; a spec ordered by its
+breakdown renders as a line. The bar axis is zero-based, the sequence is drawn with straight
+segments, and an ordinal x-scale is declared explicitly.
+
+**Evidence.** `docs/design.md` §6 names the forms — "ranked categories → horizontal bars;
+time → line" — but naming them by *dimension* would put dataset knowledge in the surface and
+break invariant 6. `spec.sort.by` already carries the distinction, because
+`ai/fallback-parser.ts` had to make it first: ordering by the breakdown is what "how many
+each year" means, and a chronological axis is the honest rendering of a sequence.
+
+The zero baseline is the decision that cost something visible. The top ten titles sit between
+4.28 and 4.47, so ten bars come out nearly the same length, and the approved mock solves that
+by rescaling bar fills to the data's range (100%, 77%, 44%). Rescaling reads as a large
+difference where the numbers say a small one — this product's own failure mode, drawn as a
+picture — and `docs/design.md` §4 already makes the opposite point in prose about genres:
+"the gap between the top and bottom category is small". The flatness *is* the finding. The
+same argument rejected a monotone spline on the sequence chart, which draws values between
+two members that the engine never computed.
+
+**Measured.** Plot warned that the x-scale's strings looked like numbers on the by-year
+question, and drew a warning glyph on the figure. `x.type: "point"` is now explicit: `2018`
+is a declared breakdown member, not a quantity, and an inferred linear scale would place
+members at numeric distances the engine never claimed.
+
+**Rejected: server-rendering Plot.** It needs a DOM, which means jsdom, which §10 measured at
+~755 ms of cold import for no accessibility gain. Plot is loaded with a dynamic `import()`
+inside the effect, so it is absent from the server bundle *and* from the page's first load.
+
+**Cost of deciding later.** GA-12's comparison block and any later chart inherit the form
+rule; deciding it per-chart is how two charts of the same shape end up drawn differently.
+
+### 52. One formatter module, and it writes a whole column to one width
+
+**Decided.** `src/lib/intl.ts` is the only formatter the surface has. It exports `value`,
+`count`, `date` and `column`, memoised per locale. `tests/ui/surface-rules.test.ts` reads the
+source and fails on a second `new Intl.*` anywhere under `app/`, `components/` or `lib/`, and
+on `toFixed`, `toLocaleString` or `toPrecision` anywhere at all.
+
+**Evidence.** Invariant 12's reason is that a decimal comma changes whether `4,47` reads as a
+rating or a count, and a second formatter is how one surface ends up with two answers to
+that. `column` came out of the rendered screen rather than out of the rule: `Intl` drops
+trailing zeros, so the hero list rendered `4.47`, `4.43`, `4.33`, `4.31`, `4.3`, `4.3` — a
+precision that appears to change row by row, with the decimal points out of line in a face
+chosen for its tabular numerals. The digit count is now taken from the widest value in that
+same answer and applied to all of them, capped at four, so nothing is invented and nothing is
+rounded here.
+
+`date` formats in UTC, always. An as-of of `2018-09-26T00:00:00.000Z` rendered in the
+reader's own zone names *25 September* anywhere west of Greenwich — an answer whose stated
+moment moves with the reader — and it would also make the server and the client disagree on
+the first paint.
+
+**Rejected: adding a per-measure display format to the semantic layer now.** It is the right
+answer and GA-07's journal already predicted this increment would want it. It is a GA-03
+schema change, and taking it here would have meant a layer edit, a loader change and a
+contracts change inside the increment that builds the screen. Recorded, not taken.
+
+**Cost of deciding later.** Low for the layer field; high for the single module, which is why
+that half was not deferred — every component added after this one would have picked its own
+formatter.
+
+### 53. The zero state cannot show a computed result, and that is structural rather than editorial
+
+**Decided.** `src/app/page.tsx` and `src/server/surface/zero-state.ts` read the compiled
+store's **manifest** and the semantic layer, and import neither `engine/` nor `warehouse/`.
+The dataset line — source, titles, ratings, as-of — is the ETL's own declaration of what it
+received. Each starter chip's second line is generated from the layer's labels.
+
+**Evidence.** build-spec §1.2 forbids a score card, a metrics row, a sparkline or any
+standing tile, and permits naming the data source as provenance. A reader can reasonably ask
+why `100,836 ratings` is not a metric, and the answer has to be checkable rather than
+asserted: a metric answers a question about the data, and this says what the data *is*. The
+structural form of that is the module graph — the first paint has nothing to compute *with*
+— and `tests/ui/surface-rules.test.ts` asserts it. A second test enumerates every numeral in
+the rendered text against a list of five, so a figure that appears later fails rather than
+ships.
+
+The chip captions are the same argument one level down. A hand-written "ranks titles by
+average rating" and the spec it describes drift apart silently; generating it from the layer
+means renaming a measure renames the promise.
+
+**Rejected: the reference's optimization-score card and metrics carousel**, and a standing
+catalogue summary considered in their place. Both are numbers that exist before anyone asked
+for anything — no question, no recipe, no guard, no provenance.
+
+**Cost of deciding later.** A standing tile is the kind of thing that arrives as a small
+addition and then has to be argued out of the product, because by then somebody likes it.
+
+### What the increment also measured
+
+**The composer cannot be a working question box, so it says so on the control.** Under §0's
+cut there is no interpret call and there will not be one. `ai/fallback-parser.ts` reads
+declared vocabulary and refuses the rest by design, so a box accepting any sentence would
+promise a reading it cannot perform. The field is disabled with its reason beside it, and
+the starter-questions control next to it works. `docs/design.md` §8 rejects a persistent
+no-key banner because it keeps charging for a fact already taken in — a disabled control
+explaining itself is the control's own state, read once, at the moment the user tries to
+act. It is the one place this increment deviates from the approved mock, and it is recorded
+rather than quietly dropped.
+
+**The provenance drawer became provenance inline.** GA-14 is deferred, so "How did you get
+this? →" would have been a control that opens nothing. The same facts are rendered behind a
+`<details>`, read straight off `resultSet.provenance`. A side effect worth having: this
+increment ships no overlay, so the drawer's focus defect recorded in `docs/architecture.md`
+§10 — the primitive does not move focus into its content on open — cannot apply to it.
+
+**The record-count column is dropped when the measure is that count.** On "how many ratings
+each year", `n` restates `value` on every row, and a column that repeats its neighbour reads
+as a defect rather than as evidence. The rule is derived from the rows, not from knowing
+which measures are counts. It stays on the hero moment, where 4.47 from 20 ratings beside
+4.43 from 317 is the entire point.
+
+**Long member labels are ellipsised in the chart, never clipped.** Plot clips an overlong
+tick label at the plot edge, which ate the *start* of a title: `Sunset Blvd. (a.k.a. Sunset
+Boulevard) (1950)` arrived as `unset Blvd.…`, a title that does not exist. The left margin is
+now sized from the longest label up to a third of the card, and anything longer gets an
+explicit ellipsis. The full label is in the table, which is the artifact that has to be
+complete.
+
+**`vitest` 5 uses oxc, not esbuild.** An `esbuild: { jsx: "automatic" }` in
+`vitest.config.ts` is accepted and then ignored with a warning; oxc reads `"jsx":
+"react-jsx"` from `tsconfig.json` instead, so the option was removed rather than translated.
+The surface tests render with `react-dom/server` and assert on the markup string, which needs
+no DOM — the same reason §10 gives for keeping jsdom out of the chart's server render.
+
+**The keyboard path was walked, not assumed.** GA-15's verification pass is deferred, which
+makes this the increment where it matters. Tab order is skip link → rail → all nine starter
+chips → the starter-questions control; the disabled composer field is correctly skipped;
+Enter on a chip runs the question; the focus ring is the design system's 3px accent outline
+at 2px offset on every one of them; and focus moves to the answer on arrival with
+`preventScroll`, so a keyboard user lands on the takeaway rather than halfway down the
+answer. Checked at 430px as well: the columns stack, the chart re-measures, and the document
+does not scroll horizontally.
+
+**The surface rules read source text, and that read has a known limit.** Because
+`tests/ui/surface-rules.test.ts` proves text presence rather than behaviour, dead or
+commented-out code carrying a matched token would pass it, and a behaviour-preserving
+refactor could fail it. It is kept anyway: a render test can only assert about the
+components it renders, so it can never catch the next component someone writes that formats
+a number by hand or pulls the chart library into a server module — and that future component
+is exactly the failure the single-`Intl` and client-render invariants exist to prevent. No
+machinery to close the dead-code gap is added in this increment.
+
+---
+
+---
+
 ## Keeping this current
 
 This document is the project's running record, not a retrospective.
