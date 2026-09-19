@@ -266,7 +266,7 @@ code matching it.
 
 **Size** L — one full session, no slack · **Depends on** GA-02, GA-03
 
-**Landed** 2026-09-18 · PR pending. Decisions recorded in `docs/how-this-was-built.md`
+**Landed** 2026-09-18 · [PR #22](https://github.com/phuhien92/analytics-demo/pull/22). Decisions recorded in `docs/how-this-was-built.md`
 part four, entries 33–37; the standing technical record is `docs/architecture.md` §5 and
 §5a. From here this definition of done is a record of what was built, not an instruction to
 keep code matching it.
