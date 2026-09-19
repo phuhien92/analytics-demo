@@ -1,10 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-<<<<<<< HEAD
-**Status: in progress.** GA-01 through GA-07, GA-10 and GA-12 have landed. Six of the sixteen
-=======
-**Status: in progress.** GA-01 through GA-08 and GA-10 have landed. Five of the sixteen
->>>>>>> 1165d29 (feat: GA-08 — interpret: structured outputs on a cached prefix)
+**Status: in progress.** GA-01 through GA-08, GA-10 and GA-12 have landed. Five of the sixteen
 increments are **deferred rather than cancelled** — see §0, which is the first thing to read.
 
 ## 0. The demo scope: the build stops after GA-11, at position 12
@@ -429,7 +425,7 @@ not an instruction to keep code matching it.
 
 **Landed** 2026-09-19, on branch `fm/ga-08-interpret-cached-prefix`. Brought back into
 scope after §0 deferred it: §0's reason was that the build had no API key, and one now
-exists. Decisions in `docs/how-this-was-built.md` entries 54–61; standing technical truth
+exists. Decisions in `docs/how-this-was-built.md` entries 59–66; standing technical truth
 in `docs/architecture.md` §6.
 
 **Delivers.** `ai/interpret.ts` using `client.messages.parse` with `output_config: { format: zodOutputFormat(ModelQuerySpecSchema), effort: "low" }`, importing `zodOutputFormat` from `@anthropic-ai/sdk/helpers/zod` and reading the result off `message.parsed_output`; the stable prefix in `system` carrying a `cache_control` breakpoint — pretty-printed semantic layer plus **at least five** few-shot examples — with the user question last. Freely typed questions now work.
@@ -437,7 +433,7 @@ in `docs/architecture.md` §6.
 **Done when.** Three of the five are met; **two are outstanding and are listed in §7**, because
 a captain instruction standing over this increment forbids spending the product's API key to
 develop or test it. What is unmeasured is the *confirmation reading*, not the mechanism — see
-the second bullet below for what is asserted instead, and `docs/how-this-was-built.md` entry 60
+the second bullet below for what is asserted instead, and `docs/how-this-was-built.md` entry 65
 for the figures that were taken.
 
 - **OUTSTANDING — the live reading was not taken.** The suite is built and runs two identical
@@ -463,7 +459,7 @@ for the figures that were taken.
   `output_format`, with `output_config.format` present and every message a user turn — so a
   reintroduction fails on the wire, not on the source that mentions it.
 - Met, partially: the few-shot count (**9**) and the measured cached-prefix token size (**7,397
-  characters, ~1,849 tokens** across three blocks) are recorded in entry 60 and in `AGENTS.md`.
+  characters, ~1,849 tokens** across three blocks) are recorded in entry 65 and in `AGENTS.md`.
   The first `cache_read_input_tokens` reading is not — see the first bullet.
 
 **Must not.**
@@ -834,7 +830,7 @@ settled it moves to `docs/architecture.md` and leaves this file.
    anywhere. They are listed here so they are picked up later rather than forgotten.
    - The **first `cache_read_input_tokens` reading**. Set `LIVE_INTERPRET_API_KEY` and run
      `npx vitest run tests/ai/live-interpret` — two identical requests, a cache read on the
-     second — then record the reading in `docs/how-this-was-built.md` entry 60's table and
+     second — then record the reading in `docs/how-this-was-built.md` entry 65's table and
      tick GA-08's first done-criterion.
    - The **model path's eval score**. Run `npm run eval -- --live --update-baseline --set-from=...`
      to write `tests/evals/baseline.live.json`, then record it beside the fallback baseline.
