@@ -2227,6 +2227,176 @@ machinery to close the dead-code gap is added in this increment.
 
 ---
 
+## GA-12 — The catch
+
+**2026-09-19** · `docs/build-spec.md` §3 increment 11 · decisions now standing in
+`docs/architecture.md` §5a, §6a and §11
+
+The increment the product exists for. Everything before it is machinery that makes the
+comparison true; this is where a person sees it. The engine has computed it since GA-04 —
+ask for top rated titles and emptying the guards leaves 296 titles tied at exactly 5.00,
+against *A Streetcar Named Desire* at 4.47 from 20 ratings — and the whole of this
+increment is putting that on screen **without making it a special case**. Two of the four
+decisions below are about resisting the shortcut: the engine could have been told about
+`min_evidence`, and the component could have been told about titles. Neither was.
+
+### 54. The comparison carries a tie count, because the rows cannot
+
+**Decided.** `TrustReport.comparison` gains `tiedAtTop: { naive, honest }` — how many
+members the ordering's **primary key** cannot separate from the leader on each side,
+counted before the limit. `executeOnce` computes it with the same comparators
+`orderMembers` sorts with, walking the ordered list until the first member that differs.
+
+**Evidence.** The block has to say "296", and 296 is not in the payload it was being
+given. `comparison.naive` is capped at `spec.limit` — ten rows for the hero question — so
+it can say the top of the unchecked ranking is a tie and not how wide that tie is. The
+width is the entire finding: ten rows at 5.00 read as a tie, 296 of 9,742 declared titles
+at 5.00 read as a ranking that is not ranking anything. `tests/engine.test.ts` already
+counted 296 off the aggregation for the tie-break test; the new assertion checks the
+engine's own count against that one rather than against a literal, so two different routes
+to the number agree — one filtering members on the rounded value, the other comparing
+exact rationals down the ordered list.
+
+**Rejected: letting the surface infer it.** It cannot be inferred from ten rows, so a
+block that stated 296 anyway would be stating a figure that originated outside the engine.
+Invariant 1 broken in the one place the product can least afford it, inside the block
+whose argument is that figures need provenance.
+
+**Rejected: giving the comparison each side's full coverage instead.** It answers a
+different question — how many members were ranked — and the hero's naive side would have
+read "9,742 of 9,742 titles ranked", which is true, unremarkable, and not the catch.
+
+**Cost of deciding later.** `tiedAtTop` is a required field on a nullable object that the
+conformance corpus pins by outcome rather than by shape, so it cost one line in
+`compare.ts` and nothing in the suite. Deciding it after GA-11 had built a sentence around
+the block's copy would have meant re-deriving the sentence too.
+
+### 55. The escape is a list of guard ids on the request, not a spec
+
+**Decided.** `AskRequest` gains `withoutGuards: string[]` — declared `GuardId`s to leave
+off this run. The route resolves the question to a spec as it always does and then removes
+those guards from it, by subtraction only. An id the layer does not declare is a **400
+naming the id**, not a silently ignored no-op.
+
+**Evidence.** `docs/design.md` §5 gives every guard "a one-tap escape, never a warning that
+hands the user homework", and that escape has to cross the wire. Subtraction is the
+smallest thing that expresses it and the safest: interpretation is untouched, so a caller
+cannot reach the measure, the breakdown, the filters, the ordering or the limit through
+this field. And because emptying the guards is exactly what the engine's naive run does,
+an escaped answer *is* the naive side of the comparison — recomputed with its own
+`requestId`, its own `computedAt` and its own trust report, asserted equal to
+`comparison.naive` in `tests/ask-route.test.ts` rather than re-displayed from the previous
+answer's payload.
+
+**Rejected: a general amendment transport — the parent spec plus a `SpecPatch`.** The
+machinery exists unused since GA-04 (`applyPatch`, `amendSpec`) and GA-11 will need it,
+because rewriting a phrase changes measure, breakdown, limit or guard *params*. Building
+it here to move one button would have been GA-12 shipping most of GA-11's increment,
+against the must-not C1's swap added to this card.
+
+**Rejected: ignoring an undeclared id.** Nobody types a `GuardId` — it reaches the field
+only from a caller that read it off a trust report — so an unknown one means the client and
+the layer disagree about what exists. Running every check and reporting success is
+invariant 4's silent coercion arriving through a no-op instead of through a nearest match.
+
+**Cost of deciding later.** None avoided; this is the transport GA-11 layers its sentence
+onto, and it is four lines in the route plus a field on a schema.
+
+### 56. The materiality threshold stands at 0.01, and the measurement says why it barely matters
+
+**Decided.** `minValueDelta` stays at `0.01`, the value GA-03 set. Tuned against the
+rendered block, as `docs/build-spec.md` §5 boundary 3 asked GA-12 to do, and left alone.
+
+**Evidence — measured across all nine starter questions at the delivery's as-of.** Four
+produce a block: `top-rated-titles`, `rating-by-genre`, `share-4-plus-by-genre` and
+`rating-by-decade`. Five do not. The threshold was then swept over
+`0.0001 · 0.001 · 0.01 · 0.05 · 0.1 · 0.5` — four orders of magnitude — and **the verdict
+set is identical at every one of them.** The reason is structural: every catch this
+dataset produces is a *membership* change, which `materiallyDifferent` decides with no
+number at all. `min_evidence` removes 8,445 of 9,742 titles and `exclude_uncategorised`
+removes one genre, so the two lists do not share members and the value delta is never
+consulted.
+
+**What that means, and what it does not.** It does not mean the threshold is dead code: it
+means this dataset has no near-miss case, and a dataset whose guards nudge figures without
+changing who is ranked would be decided entirely by it. Recording the sweep is the point —
+the next person to look at `minValueDelta` finds that it was measured rather than left at
+its first guess, and finds the one condition under which it would start to bite.
+
+**Rejected: raising it so the three quieter blocks stop drawing.** They draw because a
+check genuinely removed a member from the answer, which is what the block is for. Tuning a
+threshold to suppress true positives would be manufacturing the *absence* of a catch,
+which is the same defect as manufacturing one.
+
+### 57. Copy inflects the words the surface owns, and never the words the layer declares
+
+**Decided.** The block writes `{n} {label} values` — "296 title values" — following the
+idiom the trust strip already ships, and inflects only English nouns of its own:
+`record`/`records`. The approved mock reads "296 titles"; the shipped surface does not.
+
+**Evidence.** A label is layer data (invariant 8: labels are locale-keyed, and synonyms are
+for matching rather than rendering). Pluralising one in a component is the coercion
+invariant 4 forbids, arriving through a copy string rather than through a type — and it
+would break on the first locale whose plural is not `+s`, silently, in the one sentence
+that carries the product's argument. The trust strip solved this in GA-10 without anyone
+naming it; GA-12 names it.
+
+**Measured, and it is why this is not a tidiness question.** The escape made `n === 1`
+reachable for the first time: run the hero question with its checks off and the leading
+title rests on a **single** rating. The closing line would have read "the unchecked leaders
+rest on as few as 1 records each", and `ai/narrate-template.ts` — untouched since GA-07,
+because no path had ever produced a one-record leader — wrote "from 1 records" into the
+takeaway. Both are fixed; a route test pins the singular against the escaped answer and the
+plural against the checked one.
+
+**Rejected: a plural label field in the semantic layer.** It is the correct long-term
+answer and it is a GA-03 schema change, which is a design change rather than an
+implementation detail. Recorded here as the second layer field wanted, after the
+per-measure display format GA-10 recorded.
+
+**Cost of deciding later.** A locale added on top of an inflecting component means auditing
+every copy string for an English assumption, which is the audit invariant 8 exists to avoid.
+
+### What the increment also measured
+
+**The block is the largest object on the screen, and that is checked rather than asserted.**
+Measured in the browser at 430px: the catch is **1,864 CSS pixels** tall against the chart
+card's **476**, both at the column's full **468** width, with zero horizontal overflow. At
+1440px the two sides sit either side of the "becomes" connector; below `lg` they stack and
+the connector rotates.
+
+**The keyboard path was walked, because GA-15's verification pass is deferred.** Enter on a
+starter chip runs the question and moves focus to the answer region; one Tab from there
+reaches "Show me the unchecked list anyway" — it is the **first** tabbable element in the
+answer column, ahead of both disclosures — `:focus-visible` matches, the ring is the design
+system's 3px accent at 2px offset, and Enter takes the escape. "Put the checks back"
+returns the catch. No console errors on any of it.
+
+**The accessibility tree reads as the argument reads.** Three labelled regions — the block
+and one per side — each with a real heading; every row writes out its own value and its own
+record count, so nothing depends on colour or on bar length; and the two elements carrying
+no words, the gradient rule and the "becomes" connector, are the two that are
+`aria-hidden`. Strip the colour and nothing is lost, which is `docs/design.md` §7's test
+rather than a claim about it.
+
+**The naive leaders are not the ones `docs/design.md` §4 names.** The design doc lists
+*Lesson Faust*, *Lamerica* and *Heidi Fleiss* at n=2; the engine's ordering rule —
+`<measure> desc, <tieBreak> ASC, <memberId> ASC`, by UTF-16 code unit — puts `'Salem's Lot
+(2004)`, `12 Angry Men (1997)` and `12 Chairs (1976)` first, each at n=1. Both are true
+statements about 296 tied titles and neither is wrong; what decides which three a reader
+sees is the tie-break, which is precisely the field GA-01 made required because four
+implementations produced three different answers without one. The fixture carries the
+engine's answer, not the doc's.
+
+**`tests/ui/` grew a fourth rule it can hold and GA-15 cannot.** The three GA-10 shipped
+were about things that fail silently; this one is about a thing that fails *loudly and
+later*. `catch-block.test.tsx` drives the block's presence from `materiallyDifferent`
+itself, so the component's verdict and the engine's are asserted to be one verdict — a
+hand-written "this fixture should render nothing" would pass just as well against a
+component that had stopped reading `trust.comparison` at all.
+
+---
+
 ---
 
 ## Keeping this current

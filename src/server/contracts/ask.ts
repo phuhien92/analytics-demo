@@ -3,8 +3,9 @@ import { z } from "zod";
 /**
  * What a client POSTs to `/api/ask`.
  *
- * Deliberately three fields. The question is the only thing the user writes; everything
- * else is context the *caller* owns and the model never chooses.
+ * Deliberately four fields, and the question is the only thing the *user* writes.
+ * Everything else is context the **caller** owns and the model never chooses — the
+ * as-of, the locale, and which declared checks to leave off this run.
  */
 export const AskRequestSchema = z.strictObject({
   /**
@@ -26,6 +27,27 @@ export const AskRequestSchema = z.strictObject({
    * seam GA-06's replay case and GA-14's saved recipes both come through.
    */
   asOf: z.string().datetime().nullable().default(null),
+  /**
+   * `GuardId`s to leave **off** this run — the one-tap guard escape (build-spec §3
+   * GA-12).
+   *
+   * `docs/design.md` §5 gives every guard a safe default already applied and a one-tap
+   * escape, "never a warning that hands the user homework". That escape has to be
+   * expressible on the wire, and this is the smallest thing that expresses it: the
+   * question is unchanged, and what changes is which declared checks ran.
+   *
+   * It is a **list of ids, not a spec**. The route resolves the question to a spec as
+   * it always does and then removes these guards from it, so nothing undeclared can
+   * arrive this way and a caller cannot smuggle a measure, a filter or a limit past
+   * interpretation. An id this layer does not declare is a malformed request, not a
+   * near miss to be ignored (invariant 4) — `answer.ts` answers it with a 400 naming
+   * the id.
+   *
+   * Emptying the guards is what the engine's naive run already does, so an escaped
+   * answer is the naive side of the comparison, recomputed with its own provenance and
+   * its own trust report rather than re-displayed from a previous answer's payload.
+   */
+  withoutGuards: z.array(z.string()).default([]),
 });
 
 export type AskRequest = z.infer<typeof AskRequestSchema>;

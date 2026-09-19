@@ -33,6 +33,10 @@ function answerMarkup(): string {
       producer="template"
       degraded
       locale="en"
+      checksOff={null}
+      onEscape={() => {}}
+      onRestore={() => {}}
+      busy={false}
     />,
   );
 }
@@ -102,9 +106,12 @@ describe("what the answer states", () => {
     expect(html).toContain("a fixed template");
   });
 
-  test("the comparison block is absent until GA-12", () => {
-    // Stated in build-spec §3 GA-10 so it is not discovered as a bug. The data for it is
-    // already on the result set; nothing renders it yet.
+  test("the comparison block is absent when no check changed the answer", () => {
+    // GA-10 asserted this as "absent until GA-12". GA-12 landed the block, and what
+    // survives the change is the half that is permanent: `topRatedTitles` carries
+    // `comparison: null`, and an answer no check moved draws no block at all.
+    // `tests/ui/catch-block.test.tsx` holds the other half.
+    expect(topRatedTitles.trust.comparison).toBeNull();
     expect(answerMarkup()).not.toContain("would have");
   });
 });
@@ -162,6 +169,10 @@ describe("the stopped-summary caution", () => {
         narration={narration}
         narrationComplete={complete}
         streamClosed={closed}
+        checksOff={null}
+        onEscape={() => {}}
+        onRestore={() => {}}
+        busy={false}
         producer="template"
         degraded
         locale="en"

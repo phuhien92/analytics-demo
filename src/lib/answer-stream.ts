@@ -31,6 +31,20 @@ export type AnswerStreamEvents = {
   readonly onDelta: (delta: string) => void;
 };
 
+/**
+ * What the surface asks for — the client's half of `AskRequestSchema`.
+ *
+ * `withoutGuards` is the guard escape and carries no default here on purpose: the one
+ * caller writes it out on every ask, so "this answer has every check on" is a stated
+ * fact at the call site rather than an omission.
+ */
+export type AskParams = {
+  readonly question: string;
+  readonly locale: string;
+  /** Declared `GuardId`s to leave off this run. */
+  readonly withoutGuards: readonly string[];
+};
+
 export type AnswerStreamResult = {
   /** True only if the `end` frame arrived — the narration is the whole of it. */
   readonly complete: boolean;
@@ -83,15 +97,19 @@ function faultFrom(status: number, body: string): AskFault {
  * sentence about them starts arriving.
  */
 export async function askStream(
-  question: string,
-  locale: string,
+  params: AskParams,
   events: AnswerStreamEvents,
   signal?: AbortSignal,
 ): Promise<AnswerStreamResult> {
   const response = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, locale, asOf: null }),
+    body: JSON.stringify({
+      question: params.question,
+      locale: params.locale,
+      asOf: null,
+      withoutGuards: params.withoutGuards,
+    }),
     signal,
   });
 

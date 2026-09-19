@@ -56,6 +56,19 @@ export type NarrationProducer = (
  */
 const MAX_FRACTION_DIGITS = 4;
 
+/**
+ * "1 record" / "20 records".
+ *
+ * The escape (build-spec §3 GA-12) is what made this reachable: run the hero question
+ * with its checks off and the leading title rests on a **single** rating, so the
+ * takeaway read "from 1 records". `record` is this template's own English word and
+ * inflecting it is ordinary copy — unlike a declared label, which is layer data and is
+ * written exactly as declared.
+ */
+function records(n: number, numbers: Intl.NumberFormat): string {
+  return `${numbers.format(n)} ${n === 1 ? "record" : "records"}`;
+}
+
 function labelFor(
   declarations: readonly { id: string; labels: Record<string, string> }[],
   id: string,
@@ -85,16 +98,18 @@ export function templateTakeaway(
   const checks =
     trust.guardsApplied.length === 0
       ? "No checks were applied."
-      : `${numbers.format(trust.guardsApplied.length)} checks were applied.`;
+      : trust.guardsApplied.length === 1
+        ? "1 check was applied."
+        : `${numbers.format(trust.guardsApplied.length)} checks were applied.`;
 
   const coverage =
     breakdown === null
       ? `${numbers.format(trust.coverage.includedObservations)} of ` +
-        `${numbers.format(trust.coverage.totalObservations)} records are included. ${checks}`
+        `${records(trust.coverage.totalObservations, numbers)} are included. ${checks}`
       : `${numbers.format(trust.coverage.includedMembers)} of ` +
         `${numbers.format(trust.coverage.totalMembers)} ${breakdown} values are included, ` +
         `covering ${numbers.format(trust.coverage.includedObservations)} of ` +
-        `${numbers.format(trust.coverage.totalObservations)} records. ${checks}`;
+        `${records(trust.coverage.totalObservations, numbers)}. ${checks}`;
 
   const top = rows[0];
   if (top === undefined) {
@@ -108,12 +123,12 @@ export function templateTakeaway(
   // the ordering does not make.
   const headline =
     top.key === null
-      ? `${measure} is ${numbers.format(top.value)}, from ${numbers.format(top.n)} records.`
+      ? `${measure} is ${numbers.format(top.value)}, from ${records(top.n, numbers)}.`
       : spec.sort.by === "breakdown"
         ? `${measure} by ${breakdown ?? ""}, starting at ${top.key} with ` +
-          `${numbers.format(top.value)} from ${numbers.format(top.n)} records.`
+          `${numbers.format(top.value)} from ${records(top.n, numbers)}.`
         : `${top.key} leads on ${measure} at ${numbers.format(top.value)}, ` +
-          `from ${numbers.format(top.n)} records.`;
+          `from ${records(top.n, numbers)}.`;
 
   return `${headline} ${coverage}`;
 }

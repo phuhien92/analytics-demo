@@ -60,12 +60,24 @@ export function materiallyDifferent(
  * contract's `comparison` field means by null (`contracts/result-set.ts`). `material` is
  * still carried explicitly on the object rather than left implied by non-nullness, so a
  * consumer reading one does not have to infer the verdict from the shape.
+ *
+ * `tiedAtTop` is computed by the caller rather than here, because it is counted over the
+ * **members** each side ordered and this function only ever sees the two limited row
+ * sets. A block rendering "the first 3 of 296" cannot derive 296 from three rows, and a
+ * surface that guessed at it would be inventing a figure — invariant 1 in the one place
+ * the product can least afford it.
  */
 export function buildComparison(
   naive: readonly ResultRow[],
   honest: readonly ResultRow[],
+  tiedAtTop: { readonly naive: number; readonly honest: number },
   layer: SemanticLayer,
 ): TrustReport["comparison"] {
   if (!materiallyDifferent(naive, honest, layer.materiality.minValueDelta)) return null;
-  return { material: true, naive: [...naive], honest: [...honest] };
+  return {
+    material: true,
+    naive: [...naive],
+    honest: [...honest],
+    tiedAtTop: { naive: tiedAtTop.naive, honest: tiedAtTop.honest },
+  };
 }
