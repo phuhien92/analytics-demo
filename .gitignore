@@ -8,6 +8,9 @@ node_modules/
 # testing
 /coverage
 
+# the compiled store — a build artifact of `npm run ingest`, never committed
+/.store/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

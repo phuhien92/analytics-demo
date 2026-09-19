@@ -1012,6 +1012,133 @@ to run ahead of the framework's tested line for no gain.
 
 ---
 
+## GA-02 — Received payload, ETL, append-only store, pinned figures
+
+**2026-09-18** · `docs/build-spec.md` §3 increment 2 · decisions now standing in
+`docs/architecture.md` §2a
+
+Four decisions. Three are storage shape, which is the expensive kind to change later;
+the fourth is what the increment measured and refused to round away.
+
+### 26. The store is append-only, and ordering is an index over it
+
+**Decided.** Records are appended and never touched again. `ratings.byEventTime` is a
+derived permutation of log positions sorted by `(at, position)`; `asOf T` is a prefix of
+that index, found by binary search. A replayed `payloadId` is recognised and not
+re-applied. A title redeclared with different content is refused rather than merged.
+
+**Evidence.** Entry 14 made an explicit as-of point a requirement, and entry 24 paired
+`QuerySpec.asOf` with a non-nullable `Provenance.resolvedAsOf`. Both are promises about
+*re-running* a past answer, and both are worth nothing over a store that overwrites: the
+provenance still names a moment, but the moment no longer holds the numbers it named.
+Splitting records from ordering is what makes the promise survive a late arrival — the
+test appends an event dated 2001 after 100,836 events ending in 2018 and asserts that
+every record already written is byte-identical at the same position while the new one
+lands mid-index.
+
+**Rejected.** A snapshot store rebuilt per delivery, which is simpler and answers every
+question v1 asks. It fails the moment two deliveries exist, and it fails silently: the
+figures change and nothing says why. Also rejected: merging a redeclared title, because
+picking either version quietly is the coercion invariant 4 exists to remove — and this
+store has no correction feature to pick *with*.
+
+**Later would have cost.** A storage rewrite rather than a field addition, landing after
+the engine, the conformance suite and every pinned figure had been written against the
+old shape.
+
+### 27. Every measure is a scaled integer, and an off-scale value is refused
+
+**Decided.** Ratings are stored as hundredths in an `Int16Array`. The scale is declared
+in the manifest, and a delivered value that does not land on it throws, naming the value.
+
+**Evidence.** Half-stars are dyadic, so this dataset would survive as floats — which is
+exactly why the decision has to be made as policy now rather than discovered later. The
+`Warehouse` boundary is aggregation, and invariant 10 says determinism is proved across
+adapters; two adapters summing the same floats in different orders disagree in the 11th
+decimal, and the conformance suite is then pinned to whichever wrote its numbers first.
+A partner payload carrying prices makes that real rather than theoretical.
+
+**Rejected.** Rounding an off-scale value into place, which is the obvious kindness and
+the wrong one: it silently changes a partner's number at the one point in the system no
+test is looking at. A declared scale that refuses what does not fit is the same argument
+the product makes about silent coercion, applied to itself.
+
+**Later would have cost.** Every stored value, every conformance expectation and every
+pinned figure re-derived at once, with no way to tell which differences were the bug and
+which were the fix.
+
+### 28. The payload body lives outside `contracts/`, and the envelope stays in it
+
+**Decided.** `contracts/payload.ts` keeps the envelope — `sourceId`, `payloadId`,
+`schemaVersion`, `receivedAt` — and the body that names titles, ratings and viewers
+lives in `src/server/ingest/payload.ts`, beside the reader that fills it.
+
+**Evidence.** GA-01's must-not is that no core type names a MovieLens entity, and the
+body is nothing but MovieLens entities. Splitting at the envelope keeps invariant 6
+intact without pretending the body is portable: what survives a change of integration is
+the delivery contract, not the records. `read-payload.ts` then reads from disk what a
+receiver would read from a request body and validates at that same boundary, so the demo
+path and the live path fail in the same place for the same reason — which is the whole
+content of "the receiver is not built for the demo" (entry 10).
+
+**Rejected.** A generic record-batch body in `contracts/` that names nothing. It keeps
+one schema instead of two, and it buys that by making every field untyped at exactly the
+point where a partner's mistake should be caught by name.
+
+**Later would have cost.** Not much in code — but the MovieLens body would have been sat
+in the portable contract for the rest of the build, which is the mistake design review
+already caught once.
+
+### 29. The pinned figures are asserted with their definitions, and both genre averages are pinned
+
+**Decided.** Each figure carries its definition, its guards in effect — none, asserted —
+and its as-of. Genres per title is pinned **twice**: 2.27 with `exclude_uncategorised`
+on (22,050 assignments over the 9,708 categorised titles) and 2.26 with it off (the same
+22,050 over all 9,742).
+
+**Evidence.** 2.2634 and 2.2713 round to different numbers at two decimal places, and
+dividing by every title is what the most natural implementation writes. `AGENTS.md`
+pins 2.27 and says a figure that moves means the ETL changed — so a faithful team
+reading 2.26 on day one would have gone looking for a regression that was not there.
+Pinning both makes the denominator the thing under test instead of the rounding.
+
+The CRLF finding is kept executable the same way. All four files are `\r\n`; read
+naively the genre count goes from 19 to 38, and `IMAX` — always last in its row — stops
+existing under its own name entirely, so a breakdown by genre loses it with no error
+anywhere. The suite pins the shipped 19 **and** the 38, and asserts that the reader's
+column lookup catches the defect at the payload boundary before a row is read.
+
+**Rejected.** Pinning 2.27 alone, per `AGENTS.md`. Nothing about the figure was wrong;
+what was missing was the definition that makes it reproducible, and the table's own
+instruction — investigate before updating — is what turned the discrepancy into a
+decision instead of an edit.
+
+**Later would have cost.** A day of investigating a regression that never happened, and
+the more expensive outcome on the other side: a team that "fixed" the ETL until it read
+2.27 under a definition nobody had written down.
+
+### What the increment also measured
+
+The as-of replay works end to end, checked early because it is cheap to check and
+expensive to discover late: at `asOf 2007-08-02` against the full 2018 store, the log is
+a strict 50,266-event prefix and the top three titles clearing twenty ratings are
+Shawshank 4.46 (n=149), Dr. Strangelove 4.44 (n=43) and Lawrence of Arabia 4.44 (n=32) —
+the numbers GA-04's definition of done expects. Those assertions belong to GA-04 and are
+not made here; the store they will run against is now known to carry them.
+
+The thirteen undated titles were re-measured and still carry 18 of 100,836 ratings, none
+clearing twenty — the evidence base for C4, unchanged. One of the thirteen is why the
+year rule stays strict: `Death Note: Desu nôto (2006–2007)` carries a year *range* with
+an en-dash, and every looser rule tried files it under 2006 without saying so.
+
+Node 22.23.1 strips TypeScript natively with no flag, so `npm run ingest` needs no runner
+dependency and no build step. The cost is that Node resolves no extensionless relative
+imports, so the executed chain carries explicit `.ts` extensions; `erasableSyntaxOnly`
+was turned on across the project so that a construct which breaks that chain fails at
+`tsc` rather than at the next ingest.
+
+---
+
 ## Keeping this current
 
 This document is the project's running record, not a retrospective.
