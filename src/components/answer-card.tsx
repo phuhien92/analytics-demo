@@ -31,8 +31,10 @@ export type AnswerCardProps = {
   readonly resultSet: ResultSet;
   readonly labels: LayerLabels;
   readonly narration: string;
-  /** False while the stream is still open, or if it ended without its `end` frame. */
+  /** True only if the `end` frame arrived. */
   readonly narrationComplete: boolean;
+  /** True once the stream has finished reading, with or without its `end` frame. */
+  readonly streamClosed: boolean;
   readonly producer: "template" | "model";
   readonly degraded: boolean;
   readonly locale: string;
@@ -44,6 +46,7 @@ export function AnswerCard({
   labels,
   narration,
   narrationComplete,
+  streamClosed,
   producer,
   degraded,
   locale,
@@ -83,7 +86,7 @@ export function AnswerCard({
               narration
             )}
           </p>
-          {narration !== "" && !narrationComplete ? (
+          {streamClosed && !narrationComplete ? (
             <p className="mt-2 text-small text-ga-caution-ink">
               The summary stopped before it finished. The figures above are unaffected — they
               came from the engine, not from this sentence.

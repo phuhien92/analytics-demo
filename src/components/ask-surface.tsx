@@ -41,6 +41,7 @@ type Phase =
       readonly answer: Answer;
       readonly narration: string;
       readonly complete: boolean;
+      readonly closed: boolean;
     }
   | { readonly kind: "fault"; readonly question: string; readonly fault: AskFault };
 
@@ -67,7 +68,7 @@ export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
         let received: Answer | null = null as Answer | null;
         let narration = "";
         try {
-          const { complete } = await askStream(
+          const { complete, closed } = await askStream(
             question,
             locale,
             {
@@ -76,7 +77,14 @@ export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
                 // The object lands before any prose — the wire format's own ordering
                 // (`docs/architecture.md` §6a) — so the numbers paint first and the
                 // sentence arrives over them.
-                setPhase({ kind: "answered", question, answer, narration: "", complete: false });
+                setPhase({
+                  kind: "answered",
+                  question,
+                  answer,
+                  narration: "",
+                  complete: false,
+                  closed: false,
+                });
               },
               onDelta: (delta) => {
                 narration += delta;
@@ -98,19 +106,27 @@ export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
           }
           setPhase((current) =>
             current.kind === "answered" && current.question === question
-              ? { ...current, complete }
+              ? { ...current, complete, closed }
               : current,
           );
         } catch (error) {
           if (controller.signal.aborted) return;
-          setPhase({
-            kind: "fault",
-            question,
-            fault:
-              error instanceof AskFault
-                ? error
-                : new AskFault(0, null, "the answer could not be read"),
-          });
+          if (received === null) {
+            setPhase({
+              kind: "fault",
+              question,
+              fault:
+                error instanceof AskFault
+                  ? error
+                  : new AskFault(0, null, "the answer could not be read"),
+            });
+            return;
+          }
+          setPhase((current) =>
+            current.kind === "answered" && current.question === question
+              ? { ...current, complete: false, closed: true }
+              : current,
+          );
         }
       })();
     },
@@ -194,6 +210,7 @@ export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
                   labels={labels}
                   narration={phase.narration}
                   narrationComplete={phase.complete}
+                  streamClosed={phase.closed}
                   producer={phase.answer.narration.producer}
                   degraded={phase.answer.degraded}
                   locale={locale}

@@ -32,8 +32,10 @@ export type AnswerStreamEvents = {
 };
 
 export type AnswerStreamResult = {
-  /** True only if the `end` frame arrived. */
+  /** True only if the `end` frame arrived — the narration is the whole of it. */
   readonly complete: boolean;
+  /** True once the stream has finished reading, with or without its `end` frame. */
+  readonly closed: boolean;
 };
 
 export class AskFault extends Error {
@@ -132,5 +134,5 @@ export async function askStream(
     reader.releaseLock();
   }
 
-  return { complete };
+  return { complete, closed: true };
 }

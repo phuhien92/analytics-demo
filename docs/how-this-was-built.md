@@ -2216,6 +2216,15 @@ at 2px offset on every one of them; and focus moves to the answer on arrival wit
 answer. Checked at 430px as well: the columns stack, the chart re-measures, and the document
 does not scroll horizontally.
 
+**The surface rules read source text, and that read has a known limit.** Because
+`tests/ui/surface-rules.test.ts` proves text presence rather than behaviour, dead or
+commented-out code carrying a matched token would pass it, and a behaviour-preserving
+refactor could fail it. It is kept anyway: a render test can only assert about the
+components it renders, so it can never catch the next component someone writes that formats
+a number by hand or pulls the chart library into a server module — and that future component
+is exactly the failure the single-`Intl` and client-render invariants exist to prevent. No
+machinery to close the dead-code gap is added in this increment.
+
 ---
 
 ---

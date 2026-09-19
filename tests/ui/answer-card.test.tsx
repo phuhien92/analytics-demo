@@ -29,6 +29,7 @@ function answerMarkup(): string {
       labels={labels}
       narration="Streetcar Named Desire, A (1951) leads on average rating at 4.47."
       narrationComplete
+      streamClosed
       producer="template"
       degraded
       locale="en"
@@ -145,5 +146,43 @@ describe("numbers are written to one width down a column", () => {
     expect(column(4.3)).toBe("4.30");
     expect(html).toContain("4.30");
     expect(html).toContain("4.47");
+  });
+});
+
+describe("the stopped-summary caution", () => {
+  const narration = "Streetcar Named Desire, A (1951) leads on average rating at 4.47.";
+  const caution = "The summary stopped before it finished.";
+
+  function narrationMarkup(complete: boolean, closed: boolean): string {
+    return render(
+      <AnswerCard
+        question="What are our top rated titles?"
+        resultSet={topRatedTitles}
+        labels={labels}
+        narration={narration}
+        narrationComplete={complete}
+        streamClosed={closed}
+        producer="template"
+        degraded
+        locale="en"
+      />,
+    );
+  }
+
+  test("is absent while the narration is still arriving", () => {
+    const html = narrationMarkup(false, false);
+    expect(html).toContain(narration);
+    expect(html).not.toContain(caution);
+  });
+
+  test("appears once the stream closed without its end frame", () => {
+    const html = narrationMarkup(false, true);
+    expect(html).toContain(narration);
+    expect(html).toContain(caution);
+    expect(html).toContain("came from the engine, not from this sentence");
+  });
+
+  test("is absent when the end frame arrived", () => {
+    expect(narrationMarkup(true, true)).not.toContain(caution);
   });
 });
