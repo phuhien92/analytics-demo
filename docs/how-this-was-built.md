@@ -2432,6 +2432,215 @@ later*. `catch-block.test.tsx` drives the block's presence from `materiallyDiffe
 itself, so the component's verdict and the engine's are asserted to be one verdict — a
 hand-written "this fixture should render nothing" would pass just as well against a
 component that had stopped reading `trust.comparison` at all.
+## GA-08 — Interpret: structured outputs on a cached prefix
+
+**2026-09-19** · `docs/build-spec.md` §3 increment 8 · decisions now standing in
+`docs/architecture.md` §6, §8 and §9
+
+The increment that was deferred at position 12 and came back. `docs/build-spec.md` §0
+deferred GA-08 because the build had no API key and the app answers questions without one;
+a key now exists, so the model path is buildable and the question box GA-10 rendered as a
+disabled control that explains itself becomes a control that works.
+
+What shaped this increment more than the model call itself was a constraint arriving with
+it: **the key is the product's, not the builder's, and no development or test spend was
+authorised against it.** That is not a limitation worked around below. It forced the
+caching claim onto the artifact that could actually carry it — the request — and the result
+is a check that runs on every clone instead of one that runs wherever somebody has a key.
+
+### 59. Caching is asserted against the request, not against a live response
+
+**Decided.** `tests/ai/interpret.test.ts` asserts the properties prompt caching rests on as
+properties of the object `interpretRequest()` builds: the `system` prefix byte-identical
+across two questions sharing no words, exactly one `cache_control` breakpoint and it on the
+final block, the question present in `messages` and absent from every prefix block, and the
+prefix clear of the 512-token floor with margin. The live reading of
+`cache_read_input_tokens` still exists and still runs two identical requests — as an opt-in
+suite that skips loudly (entry 61).
+
+**Evidence.** Caching is a *prefix match*: any byte differing before the breakpoint
+invalidates everything after it. That is a property of the request, fully determined before
+anything is sent, so a live response can only confirm it after the fact. And the failure it
+guards against is silent — no error, no warning, no header, just uncached cost forever — so
+the check has to run where silence is cheapest to notice, which is every test run on every
+clone with no key.
+
+**Rejected: a live-only assertion, run wherever a key happens to exist.** It would have
+made the single most expensive silent regression in the build checkable only in the
+environments least likely to run the full suite, and unverifiable in CI. The same reasoning
+already runs through this build: the QuerySpec is the contract, and the eval harness
+compares specs rather than prose precisely so it needs nothing.
+
+**Cost of deciding later.** A live-only check would have gone quiet the first time someone
+ran the suite without a key, and nothing would have said so — which is the shape of the
+defect it was supposed to catch.
+
+### 60. The few-shot examples are generated from the catalogue, not authored
+
+**Decided.** `fewShotExamples()` builds the block from `STARTER_QUESTIONS` and the semantic
+layer, passing each example through `ModelQuerySpecSchema`. Nine examples ship. The
+instruction text and the catalogue block carry nothing but the layer they are handed, proved
+by building the prefix from a layer that shares no vocabulary with MovieLens.
+
+**Evidence.** Invariant 6 says nothing dataset-specific belongs in the core types, the
+engine, **or the prompt**. A hand-written block naming `avg_rating` and `genre` would put a
+MovieLens assumption inside the portable half of the build — the same mistake the design
+review already caught once in `guards: { minRatingsPerTitle }`. Generating them also closes
+a drift the layer's own loop would otherwise open: the layer grows a synonym every time an
+eval earns one, and an authored example would keep teaching the old vocabulary.
+
+**Rejected: authoring five examples by hand for control over their quality.** It buys
+phrasing that generation does not, and pays with a second copy of the catalogue that
+nothing keeps honest. Validating each generated example through the model's own schema
+recovers most of the control: an example cannot teach a shape the runtime would reject.
+
+**The claim was too strong once, and a test caught it.** The first version of this entry said
+the prompt names no dataset. It does: `STARTER_QUESTIONS` carries MovieLens ids, so the
+examples block does too. The behavioural test that replaced a source scan — build the prefix
+from a layer sharing no vocabulary with MovieLens, assert nothing leaks — failed on
+`avg_rating`, which is how the overstatement surfaced. What is true is narrower and is what
+this entry now claims: the instructions and the catalogue block carry only the layer they are
+handed, and generation introduces **no coupling beyond the one `docs/architecture.md` §8
+already declared** for the starter questions. Both halves are asserted now, the second
+specifically so the limit cannot be quietly restated as the stronger claim later.
+
+**Cost of deciding later.** Regenerating an authored block after the layer had grown means
+re-deriving which examples were still true, against a file that had changed for reasons
+nobody recorded.
+
+### 61. The live check has its own key variable, because the app's key is not permission to bill `npm test`
+
+**Decided.** The opt-in live suite reads `LIVE_INTERPRET_API_KEY` — never
+`ANTHROPIC_API_KEY` — and passes it to the client explicitly rather than letting the SDK
+resolve one from the environment. Unset is a loud skip naming what went unchecked; set and
+failing is a failure. `npm run eval -- --live` refuses rather than degrades when no key is
+present.
+
+**Evidence.** `ANTHROPIC_API_KEY` is present in exactly the environments where the app
+runs, which is where `npm test` runs too. A suite gated on it would have fired paid requests
+on an ordinary test command, silently, on a machine whose owner had set the variable for the
+app. The distinction is not hypothetical: it was discovered while building this increment,
+in an environment that had the product's key set.
+
+**Rejected: gating the live suite on `ANTHROPIC_API_KEY` and trusting people to notice.**
+It is the same shape as the conformance suite's rejected "skip the second adapter because
+one passes" — a default that produces a surprise, where the surprise is a bill.
+
+**Cost of deciding later.** The first unexpected invoice, attributed to nothing, after the
+command that caused it had been run hundreds of times.
+
+### 62. An undeclared term is echoed, and the refusal is GA-05's, unchanged
+
+**Decided.** The instructions tell the model to put the user's own word verbatim into
+`measure`, `breakdown` or a filter when the catalogue declares no such thing, rather than
+substituting the closest declared id. `resolveSpec()` then recognises it as undeclared and
+returns the same `Rejection`, through the same builder, as the fallback parser's.
+
+**Evidence.** Structured outputs forces the model to emit *a* spec — there is no refusal
+shape available to it. So the only two options were a helpful substitution, which is exactly
+the silent coercion invariant 4 exists to remove, or an echo that the deterministic layer can
+recognise. The second keeps the refusal path deterministic: what decides that a question
+cannot be answered is still `resolveSpec()` reading the layer, never the model's judgement.
+
+**Rejected: a second output shape letting the model return a refusal directly.** It moves
+the decision about what is answerable into the model, which is the one thing the semantic
+layer exists to prevent, and it would have made GA-11's showcase of refusal depend on the
+model's willingness to produce one.
+
+**Cost of deciding later.** GA-11 renders refusals. Discovering there that a refusal is
+whatever the model felt like refusing would have been a rebuild of the rendering and the
+prompt at once.
+
+### 63. The live arm is supplied without putting the SDK on the keyless import graph
+
+**Decided.** `ai/mode.ts` is untouched. `route.ts` reaches `ai/interpret.ts` through
+`await import(...)`, taken only when `aiMode()` says `live`, and hands the result to
+`selectInterpreter`. `page.tsx` calls the same `aiMode()` to decide whether the question box
+is live.
+
+**Evidence.** GA-05 built the seam as an injection specifically so the SDK and its key
+handling would stay off the import graph of the path that must work on a clean clone
+(invariant 13). A static `import` in `route.ts` would have honoured the seam's shape and
+broken its purpose — the keyless path would depend on a package it never calls. Reading the
+mode from one function in both places is what keeps the composer the user sees and the
+interpreter the route got from being two different answers.
+
+**Rejected: a static import, on the grounds that the SDK is a declared dependency anyway.**
+True and beside the point: the brief for the seam is about the graph, not about whether
+`npm install` succeeds.
+
+**Cost of deciding later.** Unwinding a static import after other modules had started
+reaching through it.
+
+### 64. Two baselines, in two files, because the paths will not agree
+
+**Decided.** `npm run eval -- --live` scores the same twenty cases the same way and records
+against `tests/evals/baseline.live.json`, beside the fallback path's `baseline.json`. Each
+file names the path that produced it.
+
+**Evidence.** The model path and the fallback path are different interpreters over one
+case set, and their disagreement is the measurement this increment exists to produce. One
+file holding whichever ran last would erase it, and `--update-baseline` on a live run would
+silently redefine what the keyless regression is checked against — turning the file that
+protects GA-05's loop into one that had been quietly overwritten by GA-08.
+
+**Rejected: one file with a `path` field, overwritten by whichever run was last.** The
+schema already carries `path`, which is what made this tempting; the field identifies a
+score, it does not keep two of them.
+
+**Cost of deciding later.** A keyless regression passing against a live baseline, which is
+the eval loop's own confident wrong answer.
+
+### 65. Recorded: the few-shot count, the prefix size, and what is still unmeasured
+
+**The figures this increment was required to record**, measured on the shipped artifacts
+rather than estimated:
+
+| Recorded | Value |
+| --- | --- |
+| Few-shot examples in the stable prefix | **9** (contract floor: 5) |
+| `system` blocks, and which carries the breakpoint | **3**, breakpoint on block 3 |
+| Instructions block | 1,169 characters |
+| Catalogue block | 2,889 characters (**1,826 minified**) |
+| Examples block | 3,339 characters |
+| **Stable prefix total** | **7,397 characters ≈ 1,849 tokens** at 4 chars/token |
+| First `cache_read_input_tokens` reading | **not measured — see below** |
+
+Two of those numbers are the cost argument. The catalogue block alone is ~722 estimated
+tokens pretty-printed and **~456 minified**, which is *below* Opus 5's 512-token floor: the
+whitespace is what carries a thin layer over it, exactly as `docs/architecture.md` §3
+recorded before this prefix existed. The examples add ~835 tokens on top, which is what
+turns a prefix that just clears the floor into one with margin. Both are cost requirements,
+and trimming either raises the bill.
+
+**The first `cache_read_input_tokens` reading was not taken.** No live call was made during
+this increment: the key belongs to the product and no development spend was authorised
+against it. The check that would take that reading is written, runs two identical requests,
+and skips loudly until `LIVE_INTERPRET_API_KEY` is set — and the property it would confirm
+is asserted structurally in the meantime (entry 59). This is recorded as an outstanding
+measurement rather than presented as a completed one, because a figure nobody measured
+written down beside figures somebody did is the exact failure this product argues against.
+
+### 66. The question box is live exactly when the deployment can read a sentence
+
+**Decided.** `SurfaceData` gains `canInterpret`, read from `aiMode()` on the server and sent
+with the page. Live, the composer accepts typing, sends on Enter and offers an **Ask**
+button; keyless, it stays the disabled control GA-10 shipped, with GA-10's copy unchanged.
+Both states are stated on the control, and `tests/ui/session-column.test.tsx` holds both.
+
+**Evidence.** GA-10 disabled the box because free typing is the one part of this product
+that genuinely needs interpretation, and a box accepting any sentence with no interpreter
+promises a reading it cannot perform. That argument is unchanged — it just resolves the
+other way when an interpreter exists. The keyless state is kept and tested rather than
+deleted because invariant 13 makes that a real deployment, not a degraded one nobody ships.
+
+**Rejected: a banner announcing the model, or removing the keyless copy now that a key
+exists.** `docs/design.md` §8 already rejected a persistent banner for charging repeatedly
+for a fact the user has taken in; and deleting the keyless branch would make invariant 13
+true only until someone cloned the repository.
+
+**Cost of deciding later.** A demo whose question box is visibly dead, which invites the
+wrong closing question.
 
 ---
 

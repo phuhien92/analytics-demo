@@ -56,7 +56,14 @@ type Phase =
     }
   | { readonly kind: "fault"; readonly question: string; readonly fault: AskFault };
 
-export function AskSurface({ dataset, starters, labels, locale, insight }: SurfaceData) {
+export function AskSurface({
+  dataset,
+  starters,
+  labels,
+  locale,
+  insight,
+  canInterpret,
+}: SurfaceData) {
   const [phase, setPhase] = useState<Phase>({ kind: "zero" });
   const inFlight = useRef<AbortController | null>(null);
   const answerRegion = useRef<HTMLDivElement>(null);
@@ -280,7 +287,14 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
           )}
         </main>
 
-        <SessionColumn dataset={dataset} locale={locale} onShowStarters={reset} />
+        <SessionColumn
+          dataset={dataset}
+          locale={locale}
+          onShowStarters={reset}
+          canInterpret={canInterpret}
+          onAsk={ask}
+          busy={busy}
+        />
       </div>
     </div>
   );

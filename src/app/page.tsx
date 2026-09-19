@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { AskSurface } from "@/components/ask-surface";
+import { aiMode } from "@/server/ai/mode";
 import { loadSemanticLayer } from "@/server/semantic/load";
 import { readStore } from "@/server/ingest/store";
 import { surfaceData } from "@/server/surface/zero-state";
@@ -26,5 +27,9 @@ export const dynamic = "force-dynamic";
 export default function Page() {
   const layer = loadSemanticLayer();
   const store = readStore(join(process.cwd(), ".store"));
-  return <AskSurface {...surfaceData(store, layer)} />;
+  // The same branch `/api/ask` takes, read from the same function, so the composer the
+  // user sees and the interpreter the route got are never two different answers.
+  // `aiMode()` reads the environment and nothing else — no SDK, no engine, no key value
+  // leaves the server.
+  return <AskSurface {...surfaceData(store, layer, "en", aiMode() === "live")} />;
 }

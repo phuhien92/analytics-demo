@@ -14,6 +14,7 @@ import {
 } from "@/server/contracts";
 
 import { matchStarter, parseQuestion } from "@/server/ai/fallback-parser";
+import type { ResolveResult } from "@/server/engine/resolve";
 import { amendSpec } from "@/server/engine/amend";
 import { ENGINE_VERSION } from "@/server/engine/execute";
 
@@ -319,39 +320,63 @@ function parentProvenance(resolvedAsOf: string, layer: SemanticLayer): Provenanc
 export type RunOptions = {
   readonly layer: SemanticLayer;
   readonly locale?: string;
-  /** Defaults to the fallback parser. GA-08 passes the model path here. */
+  /**
+   * Defaults to the fallback parser. GA-08's model path is passed here — and may return
+   * a promise, which is why the async runners below exist. The interpreter is a
+   * *parameter* rather than an import precisely so this file never depends on a key.
+   */
   readonly interpret?: (
     question: string,
     layer: SemanticLayer,
     locale?: string,
-  ) => ReturnType<typeof parseQuestion>;
+  ) => ResolveResult | Promise<ResolveResult>;
 };
 
-export function runCase(evalCase: EvalCase, options: RunOptions): CaseResult {
-  const { layer, locale = "en", interpret = parseQuestion } = options;
+/**
+ * The amendment branch, which no interpreter touches.
+ *
+ * A patch is applied by `engine/amend.ts`, not read from a question, so this case kind
+ * scores identically on both paths until GA-09 makes the *patch* something a model
+ * produces.
+ */
+function scoreAmendment(
+  evalCase: Extract<EvalCase, { kind: "amendment" }>,
+  layer: SemanticLayer,
+  locale: string,
+): CaseResult {
+  const parent = expandExpected(evalCase.parent, layer);
+  const expected = expandExpected(evalCase.expect.spec, layer);
+  const actual = amendSpec(
+    parent,
+    parentProvenance(evalCase.parentResolvedAsOf, layer),
+    evalCase.patch,
+    layer,
+    evalCase.followUp,
+  );
+  const passed = actual.ok && specsEqual(expected, actual.spec);
+  return {
+    id: evalCase.id,
+    kind: evalCase.kind,
+    subject: evalCase.followUp,
+    passed,
+    finding: passed ? null : explain(evalCase, layer, actual, expected, locale),
+  };
+}
 
-  if (evalCase.kind === "amendment") {
-    const parent = expandExpected(evalCase.parent, layer);
-    const expected = expandExpected(evalCase.expect.spec, layer);
-    const actual = amendSpec(
-      parent,
-      parentProvenance(evalCase.parentResolvedAsOf, layer),
-      evalCase.patch,
-      layer,
-      evalCase.followUp,
-    );
-    const passed = actual.ok && specsEqual(expected, actual.spec);
-    return {
-      id: evalCase.id,
-      kind: evalCase.kind,
-      subject: evalCase.followUp,
-      passed,
-      finding: passed ? null : explain(evalCase, layer, actual, expected, locale),
-    };
-  }
-
-  const actual = interpret(evalCase.question, layer, locale);
-
+/**
+ * Scoring, once, for whichever interpreter produced `actual`.
+ *
+ * Extracted so the sync and async runners share it rather than each carrying a copy: a
+ * second scoring rule is a second definition of what passing means, and the whole claim
+ * of `npm run eval -- --live` is that it scores the model against **the same** set the
+ * same way.
+ */
+function scoreInterpreted(
+  evalCase: Exclude<EvalCase, { kind: "amendment" }>,
+  actual: ResolveResult,
+  layer: SemanticLayer,
+  locale: string,
+): CaseResult {
   if (evalCase.kind === "rejection") {
     // Invariant 4, scored: an undeclared question becomes a clarifying question that names
     // the gap and offers questions that work — never a nearest match.
@@ -380,8 +405,61 @@ export function runCase(evalCase: EvalCase, options: RunOptions): CaseResult {
   };
 }
 
+/**
+ * The keyless runner, and the one `npm run eval` takes.
+ *
+ * It stays synchronous on purpose. This is the loop the layer acquires structure
+ * through, so it has to run in CI, on a clean clone and with no key — and a synchronous
+ * signature is the cheapest way to keep it obvious that nothing here awaits a network.
+ * An interpreter that returns a promise is a caller error with a named fix, never a
+ * silently unresolved `Promise` scored as a failure.
+ */
+export function runCase(evalCase: EvalCase, options: RunOptions): CaseResult {
+  const { layer, locale = "en", interpret = parseQuestion } = options;
+
+  if (evalCase.kind === "amendment") return scoreAmendment(evalCase, layer, locale);
+
+  const actual = interpret(evalCase.question, layer, locale);
+  if (actual instanceof Promise) {
+    throw new Error(
+      `runCase() is synchronous and this interpreter returned a promise — use runCasesAsync() for the model path`,
+    );
+  }
+  return scoreInterpreted(evalCase, actual, layer, locale);
+}
+
 export function runCases(cases: readonly EvalCase[], options: RunOptions): CaseResult[] {
   return cases.map((evalCase) => runCase(evalCase, options));
+}
+
+/** The same scoring, awaiting an interpreter that calls out. Used by `--live`. */
+export async function runCaseAsync(evalCase: EvalCase, options: RunOptions): Promise<CaseResult> {
+  const { layer, locale = "en", interpret = parseQuestion } = options;
+
+  if (evalCase.kind === "amendment") return scoreAmendment(evalCase, layer, locale);
+
+  return scoreInterpreted(
+    evalCase,
+    await interpret(evalCase.question, layer, locale),
+    layer,
+    locale,
+  );
+}
+
+/**
+ * Sequential, deliberately.
+ *
+ * The set is twenty cases, and firing them at once buys seconds while risking a rate
+ * limit that would score a case as a failure for a reason that has nothing to do with
+ * interpretation. A score the run cannot stand behind is worse than a slow one.
+ */
+export async function runCasesAsync(
+  cases: readonly EvalCase[],
+  options: RunOptions,
+): Promise<CaseResult[]> {
+  const results: CaseResult[] = [];
+  for (const evalCase of cases) results.push(await runCaseAsync(evalCase, options));
+  return results;
 }
 
 /** One JSON object per line; `#` comments and blank lines are skipped. */

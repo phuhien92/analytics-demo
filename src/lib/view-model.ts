@@ -92,4 +92,15 @@ export type SurfaceData = {
   readonly labels: LayerLabels;
   readonly locale: string;
   readonly insight: InsightBriefing;
+  /**
+   * Whether this process can read a freely typed question.
+   *
+   * It is the *same* fact `ai/mode.ts` branches on, read once on the server and sent
+   * with the page, because the composer and the route must never disagree: a box that
+   * accepts typing into a process with no interpreter promises a reading it cannot
+   * perform, and a box disabled in front of a process that has one hides the product's
+   * own half. Not a capability the client sniffs — `AGENTS.md` invariant 13 makes the
+   * keyless build a real build, so this is a fact about the deployment.
+   */
+  readonly canInterpret: boolean;
 };

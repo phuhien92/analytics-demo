@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 through GA-07, GA-10 and GA-12 have landed. Six of the sixteen
+**Status: in progress.** GA-01 through GA-08, GA-10 and GA-12 have landed. Five of the sixteen
 increments are **deferred rather than cancelled** — see §0, which is the first thing to read.
 
 ## 0. The demo scope: the build stops after GA-11, at position 12
@@ -10,7 +10,15 @@ being built from them is shorter, and it ends at **position 12**:
 
 | In scope | Deferred (post-mvp) |
 | --- | --- |
-| GA-01 … GA-05 · GA-06 · GA-07 · **GA-10** · **GA-12** · **GA-11** | GA-08 · GA-09 · GA-13 · GA-14 · GA-15 · GA-16 |
+| GA-01 … GA-05 · GA-06 · GA-07 · **GA-10** · **GA-12** · **GA-11** | ~~GA-08~~ · GA-09 · GA-13 · GA-14 · GA-15 · GA-16 |
+
+**GA-08 came back, on 2026-09-19.** The deferral below rests on one fact — the build had no
+API key — and a captain decision supplied one, which settles the provider question as
+`docs/architecture.md` already pinned it: Anthropic, `claude-opus-5`. Free typing therefore
+ships and GA-10's disabled question box becomes a live one. **GA-09 remains deferred**, so
+narration is still GA-07's template, and the rest of this section stands unchanged: what it
+argues is that the surface never depended on the model, and landing GA-08 does not make it
+depend on one — invariant 1 still says no figure comes from a model response.
 
 The reason is one fact about the dependency graph: **the app answers questions without a model.**
 GA-05 shipped a deterministic fallback parser that covers the starter questions, GA-07's route
@@ -20,8 +28,9 @@ the three increments that make the product *visible* — the surface, the catch,
 sentence — depend only on the route, not on GA-08's interpret call or GA-09's narrate call. The
 demo reaches its own hero moment with no API key and no provider dependency.
 
-What that costs is real and is stated here rather than discovered: free typing and follow-up
-amendments (GA-08, GA-09, GA-13) are the model's half of the product and do not ship; the
+What that costs is real and is stated here rather than discovered: follow-up amendments
+(GA-09, GA-13) are the model's remaining half and do not ship — free typing does, since
+GA-08 came back; the
 provenance drawer and saved recipes (GA-14) do not ship, though GA-10 renders the provenance
 inline instead of dropping it; the accessibility *verification* pass (GA-15) does not run, so
 GA-10 builds its accessibility in and asserts it in `tests/ui/` rather than relying on a later
@@ -128,7 +137,8 @@ reading the code.
 20. The narrate call's request body carries at most 20 aggregated rows plus the trust report, and no
     raw record — asserted by inspecting the body, not the prose.
 21. The word "verified" appears nowhere user-facing.
-22. `grep -rn "output_format" src/` returns nothing.
+22. `grep -rn "output_format" src/` finds no non-prose match: the literal grep returns one comment
+    in `ai/interpret.ts` explaining why the parameter is unused (nuance narrated by GA-08).
 23. Turning the key off removes the model entirely and **every number stays identical**.
 
 ---
@@ -149,7 +159,7 @@ cross-reference. **Build in the `#` column's order, not in id order.**
 | 5 | GA-05 | Fallback parser, rejection path, eval harness | GA-03, GA-04 | M | flexible with GA-06 |
 | 6 | GA-06 | Proof suite: conformance, second adapter, replay, paraphrase | GA-04 | M | flexible with GA-05 |
 | 7 | GA-07 | The ask route and the answer object | GA-05 | S | locked |
-| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked · **deferred (§0)** |
+| 8 | GA-08 | Interpret: structured outputs on a cached prefix | GA-07 | M | locked · **landed** |
 | 9 | GA-09 | Narrate, and amend | GA-07, GA-08 | M | locked · **deferred (§0)** |
 | 10 | GA-10 | The surface: shell, zero state, answer card | GA-07 | L | locked |
 | **11** | **GA-12** | **The catch** | GA-10 | M | **moved up one by C1** |
@@ -413,16 +423,44 @@ not an instruction to keep code matching it.
 
 **Size** M — one session · **Depends on** GA-07
 
-**Landed** — not yet.
+**Landed** 2026-09-19, on branch `fm/ga-08-interpret-cached-prefix`. Brought back into
+scope after §0 deferred it: §0's reason was that the build had no API key, and one now
+exists. Decisions in `docs/how-this-was-built.md` entries 59–66; standing technical truth
+in `docs/architecture.md` §6.
 
 **Delivers.** `ai/interpret.ts` using `client.messages.parse` with `output_config: { format: zodOutputFormat(ModelQuerySpecSchema), effort: "low" }`, importing `zodOutputFormat` from `@anthropic-ai/sdk/helpers/zod` and reading the result off `message.parsed_output`; the stable prefix in `system` carrying a `cache_control` breakpoint — pretty-printed semantic layer plus **at least five** few-shot examples — with the user question last. Freely typed questions now work.
 
-**Done when.**
-- Live suite (skipped without a key): two identical requests → the second reports `usage.cache_read_input_tokens > 0`.
-- A model output naming an undeclared measure produces a `Rejection`; `message.parsed_output` never contains `sort.tieBreak` or `asOf`.
-- `npm run eval -- --live` scores the model path against the same question set, recorded beside the fallback baseline.
-- `grep -rn "output_format" src/` and a grep for assistant prefill → no matches.
-- Recorded: the few-shot count, the measured cached-prefix token size, and the first `cache_read_input_tokens` reading.
+**Done when.** Three of the five are met; **two are outstanding and are listed in §7**, because
+a captain instruction standing over this increment forbids spending the product's API key to
+develop or test it. What is unmeasured is the *confirmation reading*, not the mechanism — see
+the second bullet below for what is asserted instead, and `docs/how-this-was-built.md` entry 65
+for the figures that were taken.
+
+- **OUTSTANDING — the live reading was not taken.** The suite is built and runs two identical
+  requests, asserting `usage.cache_read_input_tokens > 0` on the second; it is opt-in behind
+  `LIVE_INTERPRET_API_KEY` and loud-skips otherwise. No live call was made, so no reading exists.
+- Met, and it is what covers the cost property in the meantime: the caching mechanism is asserted
+  against **the request** in `tests/ai/interpret.test.ts` — the prefix byte-identical across two
+  questions sharing no words, exactly one `cache_control` breakpoint and it on the prefix's final
+  block, the question in `messages` and absent from every prefix block, and the prefix measured at
+  ~1,849 tokens against Opus 5's 512-token floor. These pass with no key and no spend.
+- Met: a model output naming an undeclared measure produces a `Rejection`; `message.parsed_output`
+  never contains `sort.tieBreak` or `asOf` — both absent from `ModelQuerySpecSchema` by
+  construction, so the output schema cannot carry them.
+- **OUTSTANDING — no model score was recorded.** `npm run eval -- --live` is built, scores the
+  same set the same way, and records to `tests/evals/baseline.live.json` beside the fallback
+  baseline; with no key it refuses rather than degrades. It has not been run, so that file does
+  not exist yet.
+- Met, with one nuance stated rather than glossed: `grep -rn "output_format" src/` returns **one
+  match, prose** in `ai/interpret.ts` explaining why the parameter is not used. Comments
+  stripped, there are no matches for `output_format`, `role: "assistant"` or `prefill`, and
+  `tests/ai/interpret.test.ts` asserts the same constraints on the object that would be sent —
+  `JSON.stringify(request)` on the request `interpretRequest()` builds contains no
+  `output_format`, with `output_config.format` present and every message a user turn — so a
+  reintroduction fails on the wire, not on the source that mentions it.
+- Met, partially: the few-shot count (**9**) and the measured cached-prefix token size (**7,397
+  characters, ~1,849 tokens** across three blocks) are recorded in entry 65 and in `AGENTS.md`.
+  The first `cache_read_input_tokens` reading is not — see the first bullet.
 
 **Must not.**
 - Use `output_format` — removed from the SDK type surface, not merely deprecated, so it is a compile error. Assistant prefill returns 400 on Opus 5.
@@ -787,8 +825,32 @@ settled it moves to `docs/architecture.md` and leaves this file.
 
 1. **Saved-recipes persistence:** `localStorage`, keyed by `layerVersion`, so a layer change cannot
    resurrect a spec that no longer validates.
+2. **GA-08's two live readings, outstanding rather than settled.** Both are *measurements*, not
+   decisions: the machinery is built, opt-in, and loud-skips, and neither figure is claimed
+   anywhere. They are listed here so they are picked up later rather than forgotten.
+   - The **first `cache_read_input_tokens` reading**. Set `LIVE_INTERPRET_API_KEY` and run
+     `npx vitest run tests/ai/live-interpret` — two identical requests, a cache read on the
+     second — then record the reading in `docs/how-this-was-built.md` entry 65's table and
+     tick GA-08's first done-criterion.
+   - The **model path's eval score**. Run `npm run eval -- --live --update-baseline --set-from=...`
+     to write `tests/evals/baseline.live.json`, then record it beside the fallback baseline.
 
-**Settled and migrated out.** `MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
+   *Recommendation: take both in one sitting, and take them before GA-09.* GA-09 narrates from
+   the model and will want a model-path baseline to move against; and a caching regression is
+   cheapest to find while the prefix is still the one this increment measured. Neither is
+   urgent — the cost property they confirm is asserted structurally on every run — but both go
+   stale quietly, which is the argument for a date rather than an intention.
+
+**Settled and migrated out.** The **interpret call's shape** — `client.messages.parse` with
+`output_config.format` carrying `zodOutputFormat(ModelQuerySpecSchema)` at `effort: "low"`, a
+three-block stable prefix with one `cache_control` breakpoint on its last block, few-shot
+examples *generated* from the starter catalogue rather than authored, an undeclared term
+echoed verbatim so `resolveSpec()` produces GA-05's `Rejection`, and the live arm reached
+through a dynamic import gated on `aiMode()` — together with **how the caching claim is
+checked** (against the constructed request, with the live confirmation opt-in behind
+`LIVE_INTERPRET_API_KEY` rather than the product's own key) and **two eval baselines in two
+files**: all settled by GA-08 and now standing in `docs/architecture.md` §6, §8 and §9.
+`MAX_LIMIT = 120` and `NARRATE_ROW_CAP = 20`, with the cardinality
 measurement that grounds them, and the Vitest pin — both settled by GA-01 and now standing in
 `docs/architecture.md` §2 and §10. The **`asOf` wire format** — ISO-8601 UTC on the spec, in
 provenance and in the manifest; unix seconds inside the store, where the comparison happens —

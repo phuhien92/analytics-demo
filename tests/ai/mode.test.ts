@@ -67,9 +67,12 @@ describe("selectInterpreter", () => {
     expect(selected.interpret).toBe(live);
   });
 
-  it("degrades when there is a key but no live arm — which is this increment", () => {
-    // GA-05 ships no model call. A key in the environment must not change what runs, or
-    // "this build called nothing" would depend on the environment rather than on the code.
+  it("degrades when there is a key but no live arm", () => {
+    // Still load-bearing after GA-08 supplied one. `route.ts` reaches the live arm
+    // through a dynamic import, so a caller that has not taken it — a test, a script, a
+    // future entry point — passes `null` and must degrade. A key in the environment
+    // cannot by itself decide what runs, or "this build called nothing" would be a fact
+    // about the environment rather than about the code.
     const selected = selectInterpreter(null, { ANTHROPIC_API_KEY: "sk-ant-whatever" });
 
     expect(selected.mode).toBe("degraded");
