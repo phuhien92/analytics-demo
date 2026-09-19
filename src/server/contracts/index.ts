@@ -8,6 +8,7 @@
  */
 
 export * from "./answer";
+export * from "./ask";
 export * from "./ids";
 export * from "./payload";
 export * from "./query-spec";

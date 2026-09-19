@@ -113,6 +113,9 @@ The central artifact (architecture §2). Every safety property falls out of its 
 | Rounding half up, or letting the formatter round | *A Streetcar Named Desire* averages **exactly 4.475** — a true midpoint. `Math.round` and `Intl` give 4.48; `toFixed` and `Math.round(v*100)` give 4.47. The engine rounds **half toward zero** at the presentation scale, so the pinned 4.47 is arithmetic, not an accident of the formatter (architecture §5a) |
 | Ordering on the rounded value | Three titles display 4.44 at the 2007 replay; only the exact rational ranks them as the build spec states, and it is what `ORDER BY AVG(...)` does |
 | `localeCompare` for ordering | Depends on the runtime's ICU build; disagrees with code-unit order at the very first shipped title |
+| A `takeaway: string` field on the answer | A field-to-stream change is a change of *response kind* — content type, the client's fetch handling, component state, every test — so GA-09 would rewrite four surfaces. Narration streams from GA-07's first commit; the answer object holds only the slot, `{ producer, locale }` (architecture §6a) |
+| Server-Sent Events for the answer stream | The question travels in a body, so this is a POST and `EventSource` is GET-only — a client uses `fetch` and a reader either way. Its reconnect semantics would resume a stream whose provenance says otherwise. NDJSON, fixed frame order: `answer`, narration deltas, `end` |
+| A 4xx for a question the layer cannot answer | It was processed; the clarifying question *is* the answer. A status code cannot carry `nearest`, so GA-11's showcase of refusal would be a rebuild rather than a rendering. Refusals are 200; a malformed body is 400 and a broken deployment is 500 |
 
 Out of scope for v1 (design §9): auth, multi-dataset upload, a visual chart editor,
 write-back, recommender modelling, dashboards or saved reports, and any real
@@ -171,8 +174,11 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `src/server/` splits `contracts/` (a leaf), `ingest/` (payload → store),
 `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
-`engine.test.ts`, `rejection.test.ts`, `ai/`, `conformance/` and
-`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`).
+`engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/`, `conformance/` and
+`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`). `src/app/api/ask/` splits
+`route.ts` (the composition root: disk reads, process singletons, `POST`) from `answer.ts`
+(assembly, status codes, frame order, the stream), so the whole HTTP surface is testable
+with an injected warehouse — no compiled `.store/`, no server.
 
 `npm run ingest` compiles the received payload into `.store/` — a build artifact,
 never committed. It runs on Node's native TypeScript stripping, so every relative
@@ -199,7 +205,11 @@ Next.js 16.3.5 (App Router, TypeScript) · `@anthropic-ai/sdk` 0.127.0 on
 `claude-opus-5` · Observable Plot 0.6.17 · Zod · Vitest · Vercel-ready.
 
 Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
-`headers`; all are async-only.
+`headers`; all are async-only. **This is not the Next 16 a model was trained
+on** — `node_modules/next/dist/docs/` is the version-accurate reference. `next.config.ts`
+sets `agentRules: false`, because `next dev` otherwise appends a generated block to *this
+file* on every start; a contract whose authority rests on being deliberate cannot be partly
+automatic (architecture §10).
 
 Interpretation runs at `output_config.effort: "low"` — it is extraction-shaped,
 not reasoning-heavy. Prompt caching sits on the stable prefix (semantic layer plus
