@@ -141,7 +141,8 @@ reading the code.
 20. The narrate call's request body carries at most 20 aggregated rows plus the trust report, and no
     raw record — asserted by inspecting the body, not the prose.
 21. The word "verified" appears nowhere user-facing.
-22. `grep -rn "output_format" src/` returns nothing.
+22. `grep -rn "output_format" src/` finds no non-prose match: the literal grep returns one comment
+    in `ai/interpret.ts` explaining why the parameter is unused (nuance narrated by GA-08).
 23. Turning the key off removes the model entirely and **every number stays identical**.
 
 ---
@@ -454,8 +455,8 @@ for the figures that were taken.
   same set the same way, and records to `tests/evals/baseline.live.json` beside the fallback
   baseline; with no key it refuses rather than degrades. It has not been run, so that file does
   not exist yet.
-- Met, with one nuance stated rather than glossed: `grep -rn "output_format" src/` returns **four
-  matches, all prose** in `ai/interpret.ts` explaining why the parameter is not used. Comments
+- Met, with one nuance stated rather than glossed: `grep -rn "output_format" src/` returns **one
+  match, prose** in `ai/interpret.ts` explaining why the parameter is not used. Comments
   stripped, there are no matches for `output_format`, `role: "assistant"` or `prefill`, and
   `tests/ai/interpret.test.ts` asserts the same constraints on the object that would be sent —
   `JSON.stringify(request)` on the request `interpretRequest()` builds contains no

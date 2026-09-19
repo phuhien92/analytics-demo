@@ -204,7 +204,7 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
 `engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/` (`mode`, `interpret`,
-`live-interpret`), `conformance/` and `evals/` (`questions.jsonl`, `baseline.json`,
+`live-interpret`, `keyless-import-graph`), `conformance/` and `evals/` (`questions.jsonl`, `baseline.json`,
 `baseline.live.json`, `harness.test.ts`) and `ui/`. `src/app/api/ask/`
 splits `route.ts` (the composition root: disk reads, process singletons, `POST`) from
 `answer.ts` (assembly, status codes, frame order, the stream), so the whole HTTP surface is
