@@ -457,7 +457,10 @@ for the figures that were taken.
 - Met, with one nuance stated rather than glossed: `grep -rn "output_format" src/` returns **four
   matches, all prose** in `ai/interpret.ts` explaining why the parameter is not used. Comments
   stripped, there are no matches for `output_format`, `role: "assistant"` or `prefill`, and
-  `tests/ai/interpret.test.ts` asserts that mechanically against the comment-stripped source.
+  `tests/ai/interpret.test.ts` asserts the same constraints on the object that would be sent —
+  `JSON.stringify(request)` on the request `interpretRequest()` builds contains no
+  `output_format`, with `output_config.format` present and every message a user turn — so a
+  reintroduction fails on the wire, not on the source that mentions it.
 - Met, partially: the few-shot count (**9**) and the measured cached-prefix token size (**7,397
   characters, ~1,849 tokens** across three blocks) are recorded in entry 60 and in `AGENTS.md`.
   The first `cache_read_input_tokens` reading is not — see the first bullet.

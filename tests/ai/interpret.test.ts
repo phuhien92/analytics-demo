@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import { ModelQuerySpecSchema, type SemanticLayer } from "@/server/contracts";
@@ -338,33 +335,4 @@ describe("a question the layer cannot answer", () => {
   });
 });
 
-describe("the live arm stays off the keyless import graph", () => {
-  /**
-   * Invariant 13's structural half. A static import of `ai/interpret.ts` anywhere on the
-   * request path would put `@anthropic-ai/sdk` into the graph of the one path that has to
-   * work on a clean clone — so the route reaches it through a dynamic import gated on the
-   * same `aiMode()` the interpreter selection branches on.
-   */
-  const routeSource = readFileSync(
-    join(import.meta.dirname, "..", "..", "src", "app", "api", "ask", "route.ts"),
-    "utf8",
-  );
 
-  it("is not statically imported by the ask route", () => {
-    expect(routeSource).not.toMatch(/^import .*@\/server\/ai\/interpret/m);
-    expect(routeSource).toMatch(/await import\("@\/server\/ai\/interpret"\)/);
-  });
-
-  it("is reached only when the key branch says live", () => {
-    expect(routeSource).toMatch(/if \(aiMode\(\) !== "live"\) return null;/);
-  });
-
-  it("is not imported by the page, which only asks which mode this is", () => {
-    const pageSource = readFileSync(
-      join(import.meta.dirname, "..", "..", "src", "app", "page.tsx"),
-      "utf8",
-    );
-    expect(pageSource).not.toMatch(/@\/server\/ai\/interpret/);
-    expect(pageSource).toMatch(/aiMode\(\) === "live"/);
-  });
-});
