@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 through GA-04 have landed; the remaining twelve ticks below are empty.
+**Status: in progress.** GA-01 through GA-05 have landed; the remaining eleven ticks below are empty.
 
 ## What this document is
 
@@ -297,7 +297,9 @@ keep code matching it.
 
 **Size** M — one session · **Depends on** GA-03, GA-04 · **Swappable with** GA-06
 
-**Landed** — not yet.
+**Landed** 2026-09-18. Decisions recorded in `docs/how-this-was-built.md` part four, entries
+38–43; the standing technical record is `docs/architecture.md` §8, §9 and §10. From here this
+definition of done is a record of what was built, not an instruction to keep code matching it.
 
 > **C5 settled: Confirm — GA-05, scored against a baseline** — A reading confirmed, not a change requested. See §6.
 
@@ -741,7 +743,14 @@ and the engine composes the `ResultSet`, so guards, ordering, the trust report a
 are written once — together with **the ordering rule** (`<measure> <dir>, <tieBreak> ASC,
 <memberId> ASC`, compared on the exact rational and by UTF-16 code unit) and **the rounding rule**
 (half toward zero at the presentation scale): all settled by GA-04 and now standing in
-`docs/architecture.md` §5 and §5a.
+`docs/architecture.md` §5 and §5a. **The eval loop's shape** — it compares specs rather than
+prose so it needs no key, a failure emits a finding naming the missing structure rather than a
+mismatch, it is scored against a committed baseline that may sit below 1.000, and every declared
+synonym is asserted load-bearing — together with **the fallback parser's two stages and bounded
+output space**, **`CONTRARY_TERMS` as a refusal rule**, **the key-presence branch with an
+injected live arm**, and **`scripts/module-alias.mjs`**, the resolver that lets a `scripts/*.ts`
+runner import modules written for the bundler: all settled by GA-05 and now standing in
+`docs/architecture.md` §8, §9 and §10.
 
 ---
 

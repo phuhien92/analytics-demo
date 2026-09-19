@@ -52,13 +52,28 @@ describe("The shipped layer", () => {
     }
   });
 
-  // Volume is earned by a failing eval, never by anticipation. Asserted because a
-  // plausible-looking synonym is the cheapest thing in the build to add on a hunch.
-  it("ships no synonyms", () => {
+  /**
+   * Volume is earned by a failing eval, never by anticipation — a plausible-looking synonym
+   * is the cheapest thing in the build to add on a hunch.
+   *
+   * GA-03 held that line by asserting the layer shipped **no** synonyms at all, which was
+   * the only latch available before a harness existed. GA-05 built the harness and the
+   * first five synonyms were earned by named cases, so the latch moved rather than
+   * disappeared: `tests/evals/harness.test.ts` now removes each declared synonym in turn
+   * and requires the eval score to fall. A synonym nothing fails without is one nobody
+   * earned, and that is a stronger statement than a count.
+   *
+   * What stays here is the *shape*: locale-keyed, `en` only in v1 (invariant 8).
+   */
+  it("declares synonyms locale-keyed, for the one locale v1 ships", () => {
     const layer = loadSemanticLayer();
 
     for (const entry of [...layer.measures, ...layer.dimensions]) {
-      expect(Object.keys(entry.synonyms), entry.id).toEqual([]);
+      expect(Object.keys(entry.synonyms).filter((locale) => locale !== "en"), entry.id).toEqual([]);
+      for (const synonym of entry.synonyms["en"] ?? []) {
+        expect(synonym, entry.id).toBe(synonym.toLowerCase().trim());
+        expect(synonym.length, entry.id).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -69,9 +84,12 @@ describe("The shipped layer", () => {
   });
 
   /**
-   * Measured on this file, not estimated: 2,157 bytes pretty-printed against 1,568
-   * minified — 589 bytes of whitespace. The build spec guessed ~370 before the file
-   * existed; the shipped file's explanations made it larger.
+   * Measured on this file, not estimated: **2,363 bytes pretty-printed against 1,719
+   * minified — 644 bytes of whitespace**. The build spec guessed ~370 before the file
+   * existed; the shipped file's explanations made it larger. GA-03 measured 2,157 against
+   * 1,568; GA-05's five earned synonyms are the difference, and the figure is re-measured
+   * here rather than left to drift, because a measured number that no longer matches its
+   * file is the kind of claim this product exists to argue against.
    *
    * That difference is why this is a test and not a style preference. The layer is the
    * head of the cached prompt prefix, and Opus 5 does not cache a prefix under 512

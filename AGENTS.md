@@ -171,12 +171,22 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 `src/server/` splits `contracts/` (a leaf), `ingest/` (payload → store),
 `warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
-`engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
+`engine.test.ts`, `rejection.test.ts`, `ai/`, `conformance/` and
+`evals/` (`questions.jsonl`, `baseline.json`, `harness.test.ts`).
 
 `npm run ingest` compiles the received payload into `.store/` — a build artifact,
 never committed. It runs on Node's native TypeScript stripping, so every relative
 import under `scripts/` and `src/server/ingest/` carries an explicit `.ts`
 extension and `erasableSyntaxOnly` is on project-wide (architecture §10).
+
+`npm run eval` scores `tests/evals/questions.jsonl` against the committed baseline.
+**It compares specs, never prose, so it never calls a model and needs no key** — that
+is what lets the layer acquire structure in CI and on a clean clone. A failing eval
+must name the missing structure, not report a mismatch; a synonym is added only when a
+named case demanded it, and `tests/evals/harness.test.ts` asserts every declared
+synonym is load-bearing by removing it and requiring the score to fall. It runs on the
+same native stripping through `scripts/module-alias.mjs`, which gives Node the `@/`
+alias and extensionless resolution `tsconfig.json` and `vitest.config.ts` declare.
 
 `src/server/contracts/` is where every shared type lives, and it stays a leaf: it
 imports `zod` and its own siblings, nothing else — not `node:*`, not `next/*`, and

@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "ingest": "node scripts/ingest-payload.ts",
+    "eval": "node --import ./scripts/module-alias.mjs scripts/eval.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

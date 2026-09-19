@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "schemaVersion": 1,
   "defaultTieBreak": "title",
   "materiality": {
@@ -8,15 +8,18 @@
   "measures": [
     {
       "id": "avg_rating",
-      "labels": { "en": "average rating" }
+      "labels": { "en": "average rating" },
+      "synonyms": { "en": ["best rated"] }
     },
     {
       "id": "rating_count",
-      "labels": { "en": "number of ratings" }
+      "labels": { "en": "number of ratings" },
+      "synonyms": { "en": ["ratings"] }
     },
     {
       "id": "viewer_count",
-      "labels": { "en": "number of viewers" }
+      "labels": { "en": "number of viewers" },
+      "synonyms": { "en": ["viewers"] }
     },
     {
       "id": "title_count",
@@ -30,11 +33,13 @@
   "dimensions": [
     {
       "id": "title",
-      "labels": { "en": "title" }
+      "labels": { "en": "title" },
+      "synonyms": { "en": ["movies"] }
     },
     {
       "id": "genre",
-      "labels": { "en": "genre" }
+      "labels": { "en": "genre" },
+      "synonyms": { "en": ["genres"] }
     },
     {
       "id": "release_year",
