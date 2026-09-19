@@ -116,6 +116,20 @@ describe("the hero moment", () => {
       (member) => member.observations > 0 && roundHalfTowardZero(member.numerator, member.denominator) === 500,
     );
     expect(perfect).toHaveLength(296);
+
+    /**
+     * And the engine reports the same 296 on the comparison, so the surface never has
+     * to count members it was not given.
+     *
+     * Asserted against the aggregation rather than against a literal: the two counts are
+     * arrived at by different routes — one filters members on their rounded value, the
+     * other walks the ordered list comparing exact rationals — so agreeing is evidence
+     * rather than a restatement. A tie decided on the rounded value and a tie decided on
+     * the exact one are the same tie here only because every one of these members is
+     * exactly 5.
+     */
+    const guarded = await run(heroSpec(HERO_AS_OF));
+    expect(guarded.trust.comparison?.tiedAtTop.naive).toBe(perfect.length);
   });
 
   /**
@@ -152,6 +166,20 @@ describe("the hero moment", () => {
     expect(result.trust.comparison?.material).toBe(true);
     expect(result.trust.comparison?.naive[0]?.value).toBe(5);
     expect(result.trust.comparison?.honest[0]?.key).toBe("Streetcar Named Desire, A (1951)");
+
+    /**
+     * How wide the naive lead is — the figure the rows themselves cannot carry.
+     *
+     * `comparison.naive` is capped at `spec.limit`, so it can say the top of the
+     * unchecked ranking is a tie and not that **296 members** are in it. That number is
+     * the whole finding: a ranking whose lead is shared by 296 of the 9,742 declared
+     * titles is not ranking anything, and it is what the catch block states on screen.
+     *
+     * It is counted on the ordering's primary key, so the honest side reports 1: nothing
+     * ties with *A Streetcar Named Desire*, and the same count means two different
+     * things on the two sides only because the data does.
+     */
+    expect(result.trust.comparison?.tiedAtTop).toEqual({ naive: 296, honest: 1 });
 
     // The guard that produced the catch says what it checked, and how much it left out.
     const minEvidence = result.trust.guardsApplied.find((guard) => guard.id === "min_evidence");

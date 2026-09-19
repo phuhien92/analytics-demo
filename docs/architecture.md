@@ -674,6 +674,20 @@ needs no number; a shared member's value moving by at least `minValueDelta` need
 row whose value held while its `n` moved also counts — the number survived, the reason to
 believe it did not.
 
+**The comparison also carries `tiedAtTop`, because the rows cannot.** Each side's rows are
+capped at `spec.limit`, so they can say the top of the unchecked ranking is a tie and not
+how wide that tie is — and the width is the whole finding. Ten rows at 5.00 read as a tie;
+**296 members** at 5.00 read as a ranking that is not ranking anything. So `executeOnce`
+counts, on each side, the members the ordering's **primary key** cannot separate from the
+leader: the ones the tie-break and the member id decided between rather than the measure.
+It is counted with the same comparators `orderMembers` sorts with, on the ordered list, so
+it stops at the first member that differs. A dataset with no ties reports 1 on both sides,
+and nothing in the count knows what a title is.
+
+The alternative was letting the surface infer it, and it cannot: 296 is not derivable from
+ten rows, so a block that stated it would be stating a figure that originated outside the
+engine — invariant 1 broken in the one place the product can least afford it.
+
 ### `resolveSpec()` returns a `Rejection`; it never throws
 
 Invariant 4's mechanism. An undeclared measure, dimension or guard — and a spec that fails
@@ -917,12 +931,40 @@ confident wrong answer this product exists to catch.
 
 ### The request carries the as-of
 
-`AskRequest` is `{ question, locale, asOf }`. The question is the only free text anywhere
-in the product; the other two are context the **caller** owns and the model never chooses
+`AskRequest` was settled at `{ question, locale, asOf }` in GA-07 and gained a fourth
+field, `withoutGuards`, in GA-12 — see below. The question is the only free text anywhere
+in the product; every other field is context the **caller** owns and the model never chooses
 (build-spec §3 GA-08). The as-of is what makes a past answer re-runnable rather than
 merely explainable, and it is the seam GA-06's replay case and GA-14's saved recipes both
 come through. An empty question is a legitimate value: it returns the clarifying question
 that lists the starter questions.
+
+### The guard escape is a list of ids on the request, applied by subtraction
+
+`AskRequest` gained a fourth field in GA-12: `withoutGuards`, the declared `GuardId`s to
+leave **off** this run. `docs/design.md` §5 gives every guard a safe default already
+applied and a one-tap escape, "never a warning that hands the user homework", and that
+escape has to be expressible on the wire.
+
+It is **a list of ids, not a spec**. The route resolves the question to a spec exactly as
+it always does, then removes those guards from it — so interpretation is unchanged, and a
+caller cannot reach the measure, the breakdown, the filters, the ordering or the limit
+through this field. Emptying the guards is what the engine's naive run already does, so an
+escaped answer *is* the naive side of the comparison, recomputed with its own `requestId`,
+its own `computedAt` and its own trust report rather than re-displayed from the previous
+answer's payload.
+
+An id the layer does not declare is a **400, not a silently ignored no-op**. Nobody types a
+`GuardId`; it reaches this field only from a caller that read it off a trust report, so an
+unknown one means the client and the layer disagree about what exists. Running every check
+and reporting success would be invariant 4's silent coercion arriving through a no-op
+rather than through a nearest match.
+
+The alternative considered was a general amendment transport — the parent spec plus a
+`SpecPatch`, through the `applyPatch`/`amendSpec` pair GA-04 already ships. It was declined
+for this increment: GA-11 rewrites measure, breakdown, limit and guard *params* and will
+need that transport, but building it here would have meant GA-12 shipping most of GA-11's
+machinery to move one button, against the must-not C1's swap added.
 
 ## 7. Locale-keyed labels and `Intl` formatting
 
@@ -1319,3 +1361,65 @@ the point of the block is that the numbers above it can be reproduced, and a pro
 the surface assembled for itself would be a second account of the same run. It also means
 this increment ships no overlay, so the focus defect §10 records against the drawer
 primitive cannot apply to it.
+
+### The catch is the answer's head, and it is conditional by construction
+
+`docs/design.md` §3 makes the naive/honest comparison the wedge, so GA-12 renders it
+**open, full width, above the chart, as the largest object on the screen**, with the
+takeaway folded into its head. Measured on the shipped surface at 430px: the block is 1,864
+CSS pixels tall against the chart card's 476, both at the column's full 468.
+
+The answer's head is one of three, and exactly one — `ChecksOffBlock` when the escape was
+taken, `CatchBlock` when `trust.comparison` is not null, and the plain takeaway card
+otherwise. The narration is built once in `AnswerCard` and handed to whichever head runs,
+so the prose and its cut-short caution cannot drift between three renderings of the same
+sentence.
+
+**Nothing manufactures a catch.** The block is drawn from `trust.comparison`, which the
+engine returns as null unless emptying the guards changed the answer materially, so an
+answer no check moved draws nothing at all — there was never a dead-furniture problem to
+hedge against, and `tests/ui/catch-block.test.tsx` drives that assertion from
+`materiallyDifferent` itself rather than from a hand-written expectation.
+
+**Copy never inflects a declared label.** A label is layer data, and pluralising it is the
+coercion invariant 4 forbids arriving through a copy string, so the block follows the idiom
+the trust strip already ships: `{n} {label} values`. The approved mock reads "296 titles";
+the surface reads "296 title values", and that difference is deliberate. Words the surface
+owns — `record`/`records` — *are* inflected, because the escape made `n === 1` reachable
+for the first time and "as few as 1 records" is the sentence carrying the whole argument.
+
+**Copy never claims an ordering the spec did not make.** The block reads `shape` — the
+same `spec.sort.by` rule the chart reads — for every clause on the naive side, the honest
+side's detail and the closing fallback, not just the subhead. A sequence is ordered by its
+breakdown, so its first row is the earliest member and calling it a leader is a claim the
+ordering does not make; `ai/narrate-template.ts` refuses the same word for the same reason.
+The block renders for sequences regardless: withholding it would hide a true catch, which
+is the mirror of manufacturing a false one.
+
+**One column formatter spans both lists.** `Formatters.column` exists so a column does not
+appear to change precision row by row; two lists set side by side to be compared are one
+column for that purpose. Taken separately the naive side is all exactly `5` against the
+honest side's `4.47`, which is the same defect drawn twice as wide.
+
+### The escape is loud on both sides of the re-run
+
+build-spec §3 GA-12 forbids a silent escape, and the mechanism actively works against
+that: turning the checks off empties the spec's guards, which is what the naive run does,
+so the answer that comes back carries **no comparison to draw and no guard pills in the
+trust strip**. Left there, the loudest screen in the product would quietly become the one
+it was built to argue against.
+
+Two signals, both verified live. The trust strip's guard pills are gone and its coverage
+reads every record and every member — 100,836 of 100,836, 9,742 of 9,742. And
+`ChecksOffBlock` renders in the catch's own slot, at the catch's own size, naming each
+check that is not running with the `explanation` the layer declares, marked *Not applied*.
+
+It needs one thing the answer cannot supply, and that is the whole reason the surface
+carries state across a re-run: an escaped answer's trust report has no guards in it, so
+`AskSurface` keeps the *previous* answer's `guardsApplied` and hands it down as
+`checksOff`. The ids sent to the route come off that same report, so the escape can only
+turn off checks that actually ran on the answer being looked at.
+
+GA-11 adds the third signal, when there is a recipe sentence to rewrite. **No part of that
+sentence is built here** — C1's swap moved the catch ahead of the sentence, and borrowing
+the sentence to make the escape's signal work is the boundary the swap created.

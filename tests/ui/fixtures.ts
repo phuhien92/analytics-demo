@@ -96,6 +96,81 @@ export const topRatedTitles: ResultSet = {
   },
 };
 
+/**
+ * The same answer, carrying the catch.
+ *
+ * The comparison is the engine's own output for `"What are our top rated titles?"` at
+ * the delivery's as-of, read off a run against the compiled store and pasted here: the
+ * naive side's leaders are the alphabetically-first of **296 members tied at exactly
+ * 5.00**, every one rated by a single viewer, and the honest side is the pinned hero
+ * ranking. `tests/engine.test.ts` is what asserts the engine produces them; this file
+ * only needs a shape the block can render, and using the measured rows means a
+ * rendering defect shows up against numbers a reader already recognises.
+ *
+ * `coverage` is the honest run's, so the honest side's "1,297 of 9,742" is the same
+ * figure the trust strip below it states.
+ */
+export const topRatedTitlesCaught: ResultSet = {
+  ...topRatedTitles,
+  trust: {
+    ...topRatedTitles.trust,
+    guardsApplied: [
+      {
+        id: "min_evidence",
+        params: { minObservations: 20 },
+        explanation:
+          "Checked how many ratings each title has, and left out the ones below the threshold.",
+        excluded: 8445,
+      },
+    ],
+    coverage: {
+      includedObservations: 67898,
+      totalObservations: 100836,
+      includedMembers: 1297,
+      totalMembers: 9742,
+    },
+    comparison: {
+      material: true,
+      naive: [
+        { key: "'Salem's Lot (2004)", value: 5, rawValue: 500, n: 1 },
+        { key: "12 Angry Men (1997)", value: 5, rawValue: 500, n: 1 },
+        { key: "12 Chairs (1976)", value: 5, rawValue: 500, n: 1 },
+      ],
+      honest: [
+        { key: "Streetcar Named Desire, A (1951)", value: 4.47, rawValue: 447, n: 20 },
+        { key: "Shawshank Redemption, The (1994)", value: 4.43, rawValue: 443, n: 317 },
+        { key: "Sunset Blvd. (a.k.a. Sunset Boulevard) (1950)", value: 4.33, rawValue: 433, n: 27 },
+      ],
+      tiedAtTop: { naive: 296, honest: 1 },
+    },
+  },
+};
+
+/**
+ * What the escape produces: the same question with every check turned off.
+ *
+ * Its own trust report is empty of guards and carries no comparison — emptying the
+ * guards is exactly what the engine's naive run does, so there is no second run to
+ * diff against. That emptiness is why the surface has to carry what was turned off
+ * across the re-run, and why build-spec §3 GA-12 forbids the escape being silent.
+ */
+export const topRatedTitlesUnchecked: ResultSet = {
+  ...topRatedTitles,
+  spec: { ...topRatedTitles.spec, guards: [] },
+  rows: topRatedTitlesCaught.trust.comparison!.naive,
+  trust: {
+    guardsApplied: [],
+    coverage: {
+      includedObservations: 100836,
+      totalObservations: 100836,
+      includedMembers: 9742,
+      totalMembers: 9742,
+    },
+    notes: [],
+    comparison: null,
+  },
+};
+
 /** A count measure, where `n` restates `value` on every row. */
 export const ratingsByYear: ResultSet = {
   ...topRatedTitles,
@@ -110,4 +185,59 @@ export const ratingsByYear: ResultSet = {
     { key: "1997", value: 1916, rawValue: 1916, n: 1916 },
     { key: "1998", value: 507, rawValue: 507, n: 507 },
   ],
+};
+
+/**
+ * A **sequence** comparison: ordered by the breakdown, not by the measure.
+ *
+ * `rating-by-decade` is a shipped starter whose spec sorts `by: "breakdown"`, and
+ * `docs/how-this-was-built.md` entry 56 measured it producing a material comparison. Its
+ * first row is the *earliest* decade, not the highest-rated one — which is exactly why
+ * the block's copy may not call it a leader. Figures are illustrative; what this fixture
+ * exists to pin is the shape.
+ */
+export const ratingByDecadeCaught: ResultSet = {
+  ...topRatedTitles,
+  spec: {
+    ...topRatedTitles.spec,
+    breakdown: "release_decade",
+    sort: { by: "breakdown", dir: "asc", tieBreak: "title" },
+  },
+  rows: [
+    { key: "1930s", value: 3.86, rawValue: 386, n: 210 },
+    { key: "1940s", value: 3.91, rawValue: 391, n: 385 },
+    { key: "1950s", value: 3.82, rawValue: 382, n: 690 },
+  ],
+  trust: {
+    ...topRatedTitles.trust,
+    guardsApplied: [
+      {
+        id: "min_evidence",
+        params: { minObservations: 20 },
+        explanation:
+          "Checked how many ratings each title has, and left out the ones below the threshold.",
+        excluded: 8445,
+      },
+    ],
+    coverage: {
+      includedObservations: 67898,
+      totalObservations: 100836,
+      includedMembers: 11,
+      totalMembers: 12,
+    },
+    comparison: {
+      material: true,
+      naive: [
+        { key: "1900s", value: 3.5, rawValue: 350, n: 2 },
+        { key: "1930s", value: 3.77, rawValue: 377, n: 246 },
+        { key: "1940s", value: 3.88, rawValue: 388, n: 412 },
+      ],
+      honest: [
+        { key: "1930s", value: 3.86, rawValue: 386, n: 210 },
+        { key: "1940s", value: 3.91, rawValue: 391, n: 385 },
+        { key: "1950s", value: 3.82, rawValue: 382, n: 690 },
+      ],
+      tiedAtTop: { naive: 1, honest: 1 },
+    },
+  },
 };

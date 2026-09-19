@@ -56,6 +56,23 @@ export const TrustReportSchema = z.strictObject({
       material: z.boolean(),
       naive: z.array(ResultRowSchema),
       honest: z.array(ResultRowSchema),
+      /**
+       * How many members tie with the leading row on each side, **before the limit**.
+       *
+       * The rows above are capped at `spec.limit`, so they can say what the top of a
+       * ranking looks like and not how wide that top is. The hero moment is exactly
+       * that distinction: ten rows at 5.00 is a tie, and *296 members* at 5.00 is the
+       * finding — the number that says the unchecked ranking is not a ranking at all.
+       *
+       * It counts members the ordering's **primary key** cannot separate: the ones the
+       * tie-break, not the measure, decided between (`engine/execute.ts`,
+       * `orderMembers`). Generic by construction — nothing here knows what a title is,
+       * and a dataset with no ties reports 1 on both sides.
+       */
+      tiedAtTop: z.strictObject({
+        naive: z.number().int(),
+        honest: z.number().int(),
+      }),
     })
     .nullable(),
 });

@@ -139,6 +139,39 @@ function orderMembers(members: AggregatedMember[], spec: QuerySpec): AggregatedM
   });
 }
 
+/**
+ * How many members the ordering's **primary key** cannot separate from the leader.
+ *
+ * `orderMembers` sorts on three keys and only the first is a statement about the data:
+ * the measure (or the member key, for a sequence). The other two — the declared
+ * tie-break and the member's natural id — exist to make the order *total*, and every
+ * member they decide between is a member the answer has no real reason to rank above
+ * another. This counts them.
+ *
+ * It is the fact that makes the naive side of the catch legible. Ten rows at 5.00 read
+ * as a tie; **296 members** at 5.00 read as a ranking that is not ranking anything. The
+ * rows alone cannot say which, because they are capped at `spec.limit`.
+ *
+ * Counted on the ordered list, so it stops at the first member that differs. Nothing
+ * here knows what a title is: on a dataset with no ties it returns 1.
+ */
+function countTiedAtTop(ordered: readonly AggregatedMember[], spec: QuerySpec): number {
+  const lead = ordered[0];
+  if (lead === undefined) return 0;
+
+  let tied = 1;
+  for (let i = 1; i < ordered.length; i++) {
+    const member = ordered[i]!;
+    const primary =
+      spec.sort.by === "breakdown"
+        ? compareCodeUnits(member.key ?? "", lead.key ?? "")
+        : compareExact(member, lead);
+    if (primary !== 0) break;
+    tied++;
+  }
+  return tied;
+}
+
 function toRow(member: AggregatedMember, scale: number): ResultRow {
   const rawValue = roundHalfTowardZero(member.numerator, member.denominator);
   return {
@@ -204,14 +237,18 @@ async function executeOnce(
   spec: QuerySpec,
   resolvedAsOf: string,
   options: ExecuteOptions,
-): Promise<{ rows: ResultRow[]; aggregation: Aggregation; trust: Omit<TrustReport, "comparison"> }> {
+): Promise<{
+  rows: ResultRow[];
+  aggregation: Aggregation;
+  tiedAtTop: number;
+  trust: Omit<TrustReport, "comparison">;
+}> {
   const { warehouse, layer, locale = "en" } = options;
   const aggregation = await warehouse.aggregate({ spec, resolvedAsOf });
   const { kept, outcomes } = applyGuards(aggregation.members, spec, layer, locale);
 
-  const rows = orderMembers(kept, spec)
-    .slice(0, spec.limit)
-    .map((member) => toRow(member, aggregation.scale));
+  const ordered = orderMembers(kept, spec);
+  const rows = ordered.slice(0, spec.limit).map((member) => toRow(member, aggregation.scale));
 
   // Coverage counts observations **as the breakdown counts them**: a multi-valued
   // breakdown counts one fact once per member it belongs to, on both sides of the ratio,
@@ -224,6 +261,7 @@ async function executeOnce(
   return {
     rows,
     aggregation,
+    tiedAtTop: countTiedAtTop(ordered, spec),
     trust: {
       guardsApplied: outcomes,
       coverage: {
@@ -266,7 +304,12 @@ export async function execute(spec: QuerySpec, options: ExecuteOptions): Promise
   let comparison: TrustReport["comparison"] = null;
   if (spec.guards.length > 0) {
     const naive = await executeOnce({ ...spec, guards: [] }, resolvedAsOf, options);
-    comparison = buildComparison(naive.rows, honest.rows, layer);
+    comparison = buildComparison(
+      naive.rows,
+      honest.rows,
+      { naive: naive.tiedAtTop, honest: honest.tiedAtTop },
+      layer,
+    );
   }
 
   const provenance: Provenance = {

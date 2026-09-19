@@ -311,6 +311,59 @@ describe("The narration is a stream, not a field", () => {
     expect(templateTakeaway(resultSet, layer, "de")).toContain("4,47");
     expect(templateTakeaway(resultSet, layer, "de")).toContain("1.234");
   });
+
+  it("routes the singular check count through the same Intl formatter as every other numeral", () => {
+    // The singular branch of the checks sentence was the one digit in this takeaway
+    // written by hand. Invariant 12 binds every numeric output, so `numbers.format` is
+    // its only path too — asserted in a locale whose numeral system is not ASCII, where
+    // a hand-written "1" and `Intl` visibly disagree.
+    const singleGuard = {
+      spec: {
+        measure: "avg_rating",
+        breakdown: "title",
+        filters: [],
+        sort: { by: "measure" as const, dir: "desc" as const, tieBreak: "title" },
+        limit: 10,
+        guards: [],
+        asOf: LATEST_AS_OF,
+      },
+      rows: [{ key: "A", value: 4.47, rawValue: 447, n: 20 }],
+      trust: {
+        guardsApplied: [
+          {
+            id: "min_evidence",
+            params: { minObservations: 20 },
+            explanation: "Checked how many ratings each title has.",
+            excluded: 0,
+          },
+        ],
+        coverage: {
+          includedObservations: 100836,
+          totalObservations: 100836,
+          includedMembers: 1297,
+          totalMembers: 9737,
+        },
+        notes: [],
+        comparison: null,
+      },
+      provenance: {
+        requestId: "req_1",
+        adapterId: "local-store",
+        sourceId: "test",
+        layerVersion: layer.version,
+        layerSchemaVersion: layer.schemaVersion,
+        resolvedAsOf: LATEST_AS_OF,
+        engineVersion: "1.0.0",
+        computedAt: LATEST_AS_OF,
+      },
+    };
+
+    const ar = templateTakeaway(singleGuard, layer, "ar-EG");
+    expect(ar).toContain("١ check was applied.");
+
+    const en = templateTakeaway(singleGuard, layer, "en");
+    expect(en).toContain("1 check was applied.");
+  });
 });
 
 describe("Two identical requests agree", () => {
@@ -365,5 +418,119 @@ describe("Every response carries nosniff", () => {
     // question to offer — the distinction the rejection path depends on staying sharp.
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: { status: 400 } });
+  });
+});
+
+describe("The guard escape turns the checks off and re-runs", () => {
+  /**
+   * build-spec §3 GA-12's third done-criterion, performed the way the surface performs
+   * it: ask, read the applied checks off the answer's own trust report, ask the same
+   * question again naming those ids, and compare.
+   *
+   * *Under C1 this increment asserts the re-run; "and changes the recipe sentence's
+   * text" is GA-11's assertion, not this one.*
+   */
+  async function ask(question: string, withoutGuards: readonly string[] = []) {
+    const frames = await readFrames(
+      await askResponse(deps(), post({ question, withoutGuards })),
+    );
+    const first = frames[0];
+    if (first?.type !== "answer" || !first.answer.ok) throw new Error("expected an answer");
+    return first.answer.resultSet;
+  }
+
+  it("re-runs the same question with the answer's own checks turned off", async () => {
+    const checked = await ask(HERO);
+    const applied = checked.trust.guardsApplied.map((guard) => guard.id);
+    expect(applied).toContain("min_evidence");
+
+    const unchecked = await ask(HERO, applied);
+
+    // The spec is the interpreter's, minus the guards the caller named. Nothing else
+    // moved: same measure, same breakdown, same ordering, same limit, same as-of.
+    expect(unchecked.spec.guards).toEqual([]);
+    expect(unchecked.trust.guardsApplied).toEqual([]);
+    expect({ ...unchecked.spec, guards: null }).toEqual({ ...checked.spec, guards: null });
+  });
+
+  it("returns the naive answer — the very list the catch was showing", async () => {
+    const checked = await ask(HERO);
+    const unchecked = await ask(
+      HERO,
+      checked.trust.guardsApplied.map((guard) => guard.id),
+    );
+
+    // Not merely "different": it is the same rows the comparison's naive side carried,
+    // recomputed with their own provenance rather than re-displayed from a payload.
+    expect(unchecked.rows).toEqual(checked.trust.comparison?.naive);
+    expect(unchecked.rows[0]?.value).toBe(5);
+    expect(checked.rows[0]?.key).toBe("Streetcar Named Desire, A (1951)");
+  });
+
+  it("carries no comparison of its own, which is why the surface must say it out loud", () => {
+    // A spec with no guards is its own naive run, so there is no second run to diff
+    // against and `trust.comparison` is null by construction (`engine/execute.ts`).
+    // That emptiness is build-spec §3 GA-12's "let the escape be silent" must-not in
+    // mechanical form.
+    return ask(HERO)
+      .then((checked) => ask(HERO, checked.trust.guardsApplied.map((guard) => guard.id)))
+      .then((unchecked) => {
+        expect(unchecked.trust.comparison).toBeNull();
+        expect(unchecked.trust.coverage.includedObservations).toBe(
+          unchecked.trust.coverage.totalObservations,
+        );
+      });
+  });
+
+  it("leaves the answer untouched when it names nothing", async () => {
+    const plain = await ask(HERO);
+    const explicitlyEmpty = await ask(HERO, []);
+
+    expect(explicitlyEmpty.rows).toEqual(plain.rows);
+    expect(explicitlyEmpty.trust.guardsApplied).toEqual(plain.trust.guardsApplied);
+  });
+
+  it("refuses an id the layer does not declare, rather than ignoring it", async () => {
+    // Silently running every check and reporting success is the coercion invariant 4
+    // forbids, arriving through a no-op instead of through a nearest match. Nobody types
+    // a GuardId, so an unknown one means the client and the layer disagree.
+    const response = await askResponse(
+      deps(),
+      post({ question: HERO, withoutGuards: ["min_evidence", "no_such_check"] }),
+    );
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: { detail: string } };
+    expect(body.error.detail).toContain("no_such_check");
+    expect(body.error.detail).not.toContain("min_evidence");
+  });
+
+  it("writes the takeaway in the singular when the leader rests on one record", async () => {
+    // A defect this increment exposed rather than introduced. Before the escape there
+    // was no way to reach an answer whose top row has `n === 1`, so `templateTakeaway`
+    // had never had to say "1 record" — and the first screen to reach it is the one
+    // arguing that evidence matters.
+    const checked = await ask(HERO);
+    const unchecked = await ask(
+      HERO,
+      checked.trust.guardsApplied.map((guard) => guard.id),
+    );
+
+    expect(unchecked.rows[0]?.n).toBe(1);
+    const takeaway = templateTakeaway(unchecked, layer, "en");
+    expect(takeaway).toContain("from 1 record.");
+    expect(takeaway).not.toContain("1 records");
+    expect(takeaway).toContain("No checks were applied.");
+
+    // And the plural still reads as a plural on the checked answer.
+    expect(templateTakeaway(checked, layer, "en")).toContain("from 20 records.");
+  });
+
+  it("is a declared field on the request, defaulting to every check on", () => {
+    const parsed = AskRequestSchema.parse({ question: HERO });
+    expect(parsed.withoutGuards).toEqual([]);
+    expect(AskRequestSchema.parse({ question: HERO, withoutGuards: ["a"] }).withoutGuards).toEqual([
+      "a",
+    ]);
   });
 });

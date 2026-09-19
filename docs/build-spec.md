@@ -1,6 +1,6 @@
 # Golden Analytics — the v1 build spec
 
-**Status: in progress.** GA-01 through GA-07 and GA-10 have landed. Six of the sixteen
+**Status: in progress.** GA-01 through GA-07, GA-10 and GA-12 have landed. Six of the sixteen
 increments are **deferred rather than cancelled** — see §0, which is the first thing to read.
 
 ## 0. The demo scope: the build stops after GA-11, at position 12
@@ -469,7 +469,7 @@ perform.
 **Delivers.** `shadcn init` themed with **the approved mock's tokens rather than shadcn defaults**; the app shell (single ask column, persistent side column, bottom-anchored composer); the zero state (starter cards, promise line, dataset in the eyebrow as provenance); and the AnswerCard — takeaway, chart rendered **client-side**, the semantic `<table>` behind a “Show the numbers” disclosure, trust strip inline. `Intl` at every render site from the first component.
 
 **Done when.**
-- `npm run dev` with no key: clicking a starter card renders takeaway, chart, table and trust strip. **The comparison block is expected absent until GA-12** — stated here so it is not discovered as a bug.
+- `npm run dev` with no key: clicking a starter card renders takeaway, chart, table and trust strip. **The comparison block is expected absent until GA-12** — stated here so it is not discovered as a bug. *GA-12 has since landed it; on that increment the takeaway moved into the block's head when there is a catch to draw.*
 - `tests/ui/` asserts every chart has a sibling `<table>` with `<th>` reachable through a `<button>` disclosure, not `visibility:hidden`.
 - `grep -rn "Plot.plot" src/` returns only files carrying `"use client"`.
 - No numeral reaches the DOM except through a shared `Intl` formatter, enforced by a test.
@@ -485,7 +485,10 @@ perform.
 
 **Size** M — one session · **Depends on** GA-10 · **Swappable with** GA-11 · **moved up one by C1**
 
-**Landed** — not yet.
+**Landed** 2026-09-19. Decisions recorded in `docs/how-this-was-built.md`, entries 54–57; the
+standing technical record is `docs/architecture.md` §5a (the tie count), §6a (the escape's
+transport) and §11 (the block and the escape's signal). From here this definition of done is a
+record of what was built, not an instruction to keep code matching it.
 
 > **C1 settled: Swap them — the catch ships first** — Where the catch lands in the order. See §6.
 
@@ -700,7 +703,8 @@ decide something belonging to a later one, and where the cost is a rewrite rathe
    mistake was already caught once in design review; the type system will not catch it a second time.
 3. **GA-04 must not hardcode the materiality threshold.** GA-12 will want to tune it against the
    rendered block. In the layer that is a data edit; in the engine it is GA-12 editing GA-04's
-   internals.
+   internals. *Discharged: GA-12 tuned it as a data edit, swept it across four orders of
+   magnitude, and left it at `0.01` — see `docs/how-this-was-built.md` entry 56 for the sweep.*
 4. **GA-08 must not trim the few-shot block.** Examples are normally the first thing trimmed for
    cost. Here they keep the cached prefix above the 512-token floor, so trimming them *raises* cost
    — silently, with no error, forever.
@@ -816,7 +820,15 @@ served at HTTP 200 with faults kept apart as 400 and 500**, and **`AskRequest` a
 standing in `docs/architecture.md` §6a. **The second adapter and its driver** — the choice that stood
 here as "SQLite driver", replaced by the captain's decision to make the second adapter Postgres and
 then settled as `pg` against any server a connection string names, with no embedded engine and no
-container: settled by GA-06 and now standing in `docs/architecture.md` §5b.
+container: settled by GA-06 and now standing in `docs/architecture.md` §5b. **The materiality threshold,
+tuned against the rendered block** as boundary 3 asked and left at `minValueDelta: 0.01` — swept
+over four orders of magnitude across all nine starter questions with an identical verdict set,
+because every catch this dataset produces is a membership change that needs no number — together
+with **the comparison's `tiedAtTop`** (the naive lead's width, which the limited rows cannot
+carry), **`withoutGuards` as the escape's transport** (a list of declared guard ids applied to the
+resolved spec by subtraction, with an undeclared id a 400 rather than a no-op), and **the rule that
+copy inflects the words the surface owns and never a declared label**: all settled by GA-12 and now
+standing in `docs/architecture.md` §5a, §6a and §11.
 
 ---
 

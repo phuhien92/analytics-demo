@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Answer } from "@/server/contracts";
+import type { Answer, TrustReport } from "@/server/contracts";
 import type { SurfaceData } from "@/lib/view-model";
 import { AnswerCard } from "@/components/answer-card";
 import { AppRail } from "@/components/app-rail";
@@ -32,6 +32,16 @@ import { AskFault, askStream } from "@/lib/answer-stream";
  * flight.
  */
 
+/**
+ * The checks turned off to produce the answer on screen, or `null`.
+ *
+ * The one thing the surface carries across a re-run. An escaped answer's own trust
+ * report has no guards in it — emptying them is what the escape does — so without this
+ * the loudest moment in the product would be followed by a silent one, which build-spec
+ * §3 GA-12 forbids in as many words.
+ */
+type ChecksOff = TrustReport["guardsApplied"] | null;
+
 type Phase =
   | { readonly kind: "zero" }
   | { readonly kind: "asking"; readonly question: string }
@@ -42,6 +52,7 @@ type Phase =
       readonly narration: string;
       readonly complete: boolean;
       readonly closed: boolean;
+      readonly checksOff: ChecksOff;
     }
   | { readonly kind: "fault"; readonly question: string; readonly fault: AskFault };
 
@@ -52,8 +63,17 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
 
   useEffect(() => () => inFlight.current?.abort(), []);
 
+  /**
+   * Ask, optionally with some declared checks left off.
+   *
+   * `withoutGuards` and `checksOff` describe the same act from two sides: the ids the
+   * request carries, and the guards — with the layer's own explanation of each — the
+   * answer is missing. The route is given the ids; the surface keeps the explanations,
+   * because that is the copy `ChecksOffBlock` states and an escaped answer no longer
+   * carries it.
+   */
   const ask = useCallback(
-    (question: string) => {
+    (question: string, withoutGuards: readonly string[] = [], checksOff: ChecksOff = null) => {
       // A second question abandons the first rather than racing it. Two answers
       // interleaving into one region is how a figure ends up under the wrong heading.
       inFlight.current?.abort();
@@ -69,8 +89,7 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
         let narration = "";
         try {
           const { complete, closed } = await askStream(
-            question,
-            locale,
+            { question, locale, withoutGuards },
             {
               onAnswer: (answer) => {
                 received = answer;
@@ -84,6 +103,7 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
                   narration: "",
                   complete: false,
                   closed: false,
+                  checksOff,
                 });
               },
               onDelta: (delta) => {
@@ -137,6 +157,25 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
     inFlight.current?.abort();
     setPhase({ kind: "zero" });
   }, []);
+
+  /**
+   * The escape, and putting it back. Both are the **same question, re-run** — the only
+   * thing that changes is which declared checks the request leaves off, so nothing here
+   * rewrites a spec and nothing calls a model.
+   *
+   * The ids come off the answer's own trust report rather than from the layer, so the
+   * escape can only turn off checks that actually ran on the answer being looked at.
+   */
+  const escape = useCallback(
+    (question: string, applied: TrustReport["guardsApplied"]) => {
+      ask(
+        question,
+        applied.map((guard) => guard.id),
+        applied,
+      );
+    },
+    [ask],
+  );
 
   // Focus moves to the answer when one arrives, so a keyboard or screen-reader user is
   // taken to what they asked for instead of being left on a chip that is now off screen.
@@ -215,6 +254,12 @@ export function AskSurface({ dataset, starters, labels, locale, insight }: Surfa
                   producer={phase.answer.narration.producer}
                   degraded={phase.answer.degraded}
                   locale={locale}
+                  checksOff={phase.checksOff}
+                  onEscape={() =>
+                    escape(phase.question, phase.answer.ok ? phase.answer.resultSet.trust.guardsApplied : [])
+                  }
+                  onRestore={() => ask(phase.question)}
+                  busy={busy}
                 />
               ) : (
                 <ClarifyCard rejection={phase.answer.rejection} onAsk={ask} busy={busy} />

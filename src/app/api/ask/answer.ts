@@ -96,10 +96,17 @@ export async function answerQuestion(
     };
   }
 
+  // The guard escape, applied **after** interpretation and by **subtraction only**
+  // (`contracts/ask.ts`). The caller names declared checks to leave off; it cannot add
+  // one, retune one, or reach any other field of the spec. `askResponse` has already
+  // refused any id this layer does not declare.
+  const dropped = new Set(request.withoutGuards);
+  const guards = interpreted.spec.guards.filter((guard) => !dropped.has(guard.id));
+
   const resultSet = await execute(
     // The request carries the as-of; the interpreter never chooses it (build-spec §3
-    // GA-08). The spec is otherwise untouched — it is what a saved recipe re-runs.
-    { ...interpreted.spec, asOf: resolvedAsOf },
+    // GA-08). The spec is otherwise the interpreter's — it is what a saved recipe re-runs.
+    { ...interpreted.spec, guards, asOf: resolvedAsOf },
     { warehouse, layer, requestId, computedAt: deps.now(), locale: request.locale },
   );
 
@@ -184,6 +191,28 @@ export async function askResponse(deps: AskDependencies, httpRequest: Request): 
       400,
       requestId,
       issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "invalid request",
+    );
+  }
+
+  /**
+   * A check this layer does not declare is a **fault, not a refusal**.
+   *
+   * A refusal is what the product owes a *user* who asked something the catalogue
+   * cannot answer, and it carries a clarifying question because there is one to ask.
+   * Nobody types a `GuardId`: it reaches this field only from a caller that read it off
+   * a trust report, so an unknown one means the client and the layer disagree about
+   * what exists. Ignoring it would run the question with every check still on and
+   * report success — the silent coercion invariant 4 exists to forbid, arriving through
+   * a no-op instead of through a nearest match.
+   */
+  const undeclared = parsed.data.withoutGuards.filter(
+    (id) => !deps.layer.guards.some((guard) => guard.id === id),
+  );
+  if (undeclared.length > 0) {
+    return fault(
+      400,
+      requestId,
+      `withoutGuards: this layer declares no check called ${undeclared.join(", ")}`,
     );
   }
 
