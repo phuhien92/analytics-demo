@@ -3,6 +3,7 @@ import type { DatasetProvenance, LayerLabels, StarterCard, SurfaceData } from "@
 
 import { STARTER_QUESTIONS, type StarterQuestion } from "@/server/ai/fallback-parser";
 import type { Store } from "@/server/ingest/store";
+import { INSIGHT_BRIEFING_FIXTURE } from "@/server/surface/insight-briefing.fixture";
 
 /**
  * The zero state's data, assembled on the server.
@@ -96,5 +97,7 @@ export function surfaceData(store: Store, layer: SemanticLayer, locale = "en"): 
     starters: starterCards(layer, locale),
     labels: layerLabels(layer, locale),
     locale,
+    // Issue #27: fixture until a proactive job exists. Not engine output.
+    insight: INSIGHT_BRIEFING_FIXTURE,
   };
 }

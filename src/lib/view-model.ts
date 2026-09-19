@@ -68,10 +68,28 @@ export type LayerLabels = {
   readonly dimensions: Readonly<Record<string, string>>;
 };
 
+/**
+ * One recommended analysis on the zero state (issue #27 mock).
+ *
+ * Fixture copy today — not engine output. The CTA runs `recipeQuestion` through the
+ * normal ask path. `stubLabel` must stay visible so a reader never mistakes this for a
+ * live proactive job.
+ */
+export type InsightBriefing = {
+  /** ISO-8601 UTC — which delivery this recommendation is framed against. */
+  readonly asOf: string;
+  readonly stubLabel: string;
+  readonly insight: string;
+  readonly why: string;
+  readonly taskLabel: string;
+  readonly recipeQuestion: string;
+};
+
 /** Everything the surface needs before a question is asked. */
 export type SurfaceData = {
   readonly dataset: DatasetProvenance;
   readonly starters: readonly StarterCard[];
   readonly labels: LayerLabels;
   readonly locale: string;
+  readonly insight: InsightBriefing;
 };

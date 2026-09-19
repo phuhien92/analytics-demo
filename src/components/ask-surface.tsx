@@ -45,7 +45,7 @@ type Phase =
     }
   | { readonly kind: "fault"; readonly question: string; readonly fault: AskFault };
 
-export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
+export function AskSurface({ dataset, starters, labels, locale, insight }: SurfaceData) {
   const [phase, setPhase] = useState<Phase>({ kind: "zero" });
   const inFlight = useRef<AbortController | null>(null);
   const answerRegion = useRef<HTMLDivElement>(null);
@@ -166,13 +166,14 @@ export function AskSurface({ dataset, starters, labels, locale }: SurfaceData) {
       </a>
 
       <div className="grid min-h-dvh grid-cols-[auto_minmax(0,1fr)_22rem] lg:h-full lg:min-h-0 max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr_auto]">
-        <AppRail onNewQuestion={reset} />
+        <AppRail onGoHome={reset} />
 
         <main id="ask" className="min-w-0 px-7 py-7 max-sm:px-4 lg:min-h-0 lg:overflow-y-auto">
           {phase.kind === "zero" ? (
             <ZeroState
               dataset={dataset}
               starters={starters}
+              insight={insight}
               locale={locale}
               onAsk={ask}
               busy={busy}

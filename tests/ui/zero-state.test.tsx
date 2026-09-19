@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { ZeroState } from "@/components/zero-state";
 import { STARTER_QUESTIONS } from "@/server/ai/fallback-parser";
 import type { Store, StoreManifest } from "@/server/ingest/store";
+import { INSIGHT_BRIEFING_FIXTURE } from "@/server/surface/insight-briefing.fixture";
 import { datasetProvenance, layerLabels, starterCards } from "@/server/surface/zero-state";
 
 import { layer } from "./fixtures";
@@ -111,6 +112,7 @@ describe("what the zero state renders", () => {
     <ZeroState
       dataset={datasetProvenance(store)}
       starters={starterCards(layer, "en")}
+      insight={INSIGHT_BRIEFING_FIXTURE}
       locale="en"
       onAsk={() => {}}
       busy={false}
@@ -124,9 +126,18 @@ describe("what the zero state renders", () => {
     expect(html).toContain("September 26, 2018");
   });
 
+  test("the insight banner is stub-labelled and recommends a declared question", () => {
+    expect(html).toContain("AI insight");
+    expect(html).not.toContain("overnight pass");
+    expect(html).toContain("Mock — job not wired");
+    expect(html).toContain("Review honest top titles");
+    expect(html).toContain(INSIGHT_BRIEFING_FIXTURE.insight);
+  });
+
   test("every starter is a real button, so the keyboard reaches all of them", () => {
     const buttons = html.match(/<button/g) ?? [];
-    expect(buttons.length).toBe(STARTER_QUESTIONS.length);
+    // Starters plus the insight CTA.
+    expect(buttons.length).toBe(STARTER_QUESTIONS.length + 1);
     expect(html).toContain('type="button"');
   });
 
@@ -139,13 +150,9 @@ describe("what the zero state renders", () => {
 
   test("no figure appears that a question produced", () => {
     /**
-     * Every numeral in the *visible text* is accounted for: three from the manifest's
-     * provenance line, and one that is part of a starter question's own wording. Any
-     * other number would be a standing metric — a score card, a metrics row, a tile —
-     * and build-spec §1.2 rules all of them out.
-     *
-     * Read off the text rather than the markup, because the markup is full of Tailwind
-     * class names that are numbers and none of them is a figure anyone reads.
+     * Every numeral in the *visible text* is accounted for: provenance from the
+     * manifest, starter wording, and the issue #27 insight fixture (stub-labelled,
+     * not engine output). Any other number would be a standing metric.
      */
     // Tags out, then character references — React writes an apostrophe as `&#x27;`, and
     // a raw scan would read that as the number 27.
@@ -154,9 +161,15 @@ describe("what the zero state renders", () => {
     const allowed = new Set([
       "9,742", // titles declared, from the manifest
       "100,836", // ratings received, from the manifest
-      "26", // the as-of's day
+      "26", // the as-of's day (eyebrow + insight)
       "2018", // the as-of's year
       "4", // "share rated 4 or higher" — a starter question's own words
+      "5.0", // insight fixture — thin perfect scores (also matched as 5.00)
+      "5.00",
+      "296", // insight fixture
+      "2", // insight fixture ≤2 ratings
+      "20", // insight fixture honest floor
+      "4.47", // insight fixture Streetcar
     ]);
     for (const numeral of numerals) {
       expect(allowed.has(numeral), `unexpected numeral on the zero state: ${numeral}`).toBe(true);
