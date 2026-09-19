@@ -345,7 +345,7 @@ definition of done is a record of what was built, not an instruction to keep cod
 
 **Size** S — half a session · **Depends on** GA-05
 
-**Landed** 2026-09-18 · PR pending. Decisions recorded in `docs/how-this-was-built.md`,
+**Landed** 2026-09-18 · [PR #24](https://github.com/phuhien92/analytics-demo/pull/24). Decisions recorded in `docs/how-this-was-built.md`,
 entries 44–47; the standing technical record is `docs/architecture.md` §6a, with the
 `agentRules` note in §10. From here this definition of done is a record of what was built,
 not an instruction to keep code matching it.
