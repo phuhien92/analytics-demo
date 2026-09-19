@@ -311,6 +311,59 @@ describe("The narration is a stream, not a field", () => {
     expect(templateTakeaway(resultSet, layer, "de")).toContain("4,47");
     expect(templateTakeaway(resultSet, layer, "de")).toContain("1.234");
   });
+
+  it("routes the singular check count through the same Intl formatter as every other numeral", () => {
+    // The singular branch of the checks sentence was the one digit in this takeaway
+    // written by hand. Invariant 12 binds every numeric output, so `numbers.format` is
+    // its only path too — asserted in a locale whose numeral system is not ASCII, where
+    // a hand-written "1" and `Intl` visibly disagree.
+    const singleGuard = {
+      spec: {
+        measure: "avg_rating",
+        breakdown: "title",
+        filters: [],
+        sort: { by: "measure" as const, dir: "desc" as const, tieBreak: "title" },
+        limit: 10,
+        guards: [],
+        asOf: LATEST_AS_OF,
+      },
+      rows: [{ key: "A", value: 4.47, rawValue: 447, n: 20 }],
+      trust: {
+        guardsApplied: [
+          {
+            id: "min_evidence",
+            params: { minObservations: 20 },
+            explanation: "Checked how many ratings each title has.",
+            excluded: 0,
+          },
+        ],
+        coverage: {
+          includedObservations: 100836,
+          totalObservations: 100836,
+          includedMembers: 1297,
+          totalMembers: 9737,
+        },
+        notes: [],
+        comparison: null,
+      },
+      provenance: {
+        requestId: "req_1",
+        adapterId: "local-store",
+        sourceId: "test",
+        layerVersion: layer.version,
+        layerSchemaVersion: layer.schemaVersion,
+        resolvedAsOf: LATEST_AS_OF,
+        engineVersion: "1.0.0",
+        computedAt: LATEST_AS_OF,
+      },
+    };
+
+    const ar = templateTakeaway(singleGuard, layer, "ar-EG");
+    expect(ar).toContain("١ check was applied.");
+
+    const en = templateTakeaway(singleGuard, layer, "en");
+    expect(en).toContain("1 check was applied.");
+  });
 });
 
 describe("Two identical requests agree", () => {

@@ -305,7 +305,7 @@ export function CatchBlock({
         `what was checked below.`,
     );
   }
-  if (showsRecords && minNaiveRecords < minHonestRecords) {
+  if (honest.length > 0 && showsRecords && minNaiveRecords < minHonestRecords) {
     closing.push(
       `The unchecked leaders rest on as few as ` +
         `${recordCount(minNaiveRecords, format.count)} each; every one you are being ` +

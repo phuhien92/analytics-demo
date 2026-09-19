@@ -166,6 +166,30 @@ describe("no block is manufactured", () => {
   });
 });
 
+describe("the honest side can be emptied by the checks", () => {
+  test("closes by naming what was left out, and never states a minimum on nothing", () => {
+    // A guard that excludes every member is the state the engine models as
+    // `rows.length === 0`. The closing evidence clause compares the evidence behind the
+    // naive leaders to the evidence behind what is shown, so with no honest rows there
+    // is nothing to compare and the clause is dropped rather than stated over an empty
+    // minimum — its sibling "nothing is left to show" subhead stays.
+    const comparison = buildComparison(
+      topRatedTitlesCaught.trust.comparison!.naive,
+      [],
+      { naive: 296, honest: 0 },
+      layer,
+    );
+    const html = answerMarkup({
+      ...topRatedTitlesCaught,
+      trust: { ...topRatedTitlesCaught.trust, comparison },
+    });
+
+    expect(html).toContain("nothing is left to show");
+    expect(html).toContain("The checks left out 8,445 title values");
+    expect(html).not.toContain("rests on at least");
+  });
+});
+
 describe("the titles wrap rather than truncate", () => {
   test("no row clamps, truncates or ellipsises its member", () => {
     const html = answerMarkup(topRatedTitlesCaught);

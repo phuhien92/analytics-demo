@@ -99,7 +99,7 @@ export function templateTakeaway(
     trust.guardsApplied.length === 0
       ? "No checks were applied."
       : trust.guardsApplied.length === 1
-        ? "1 check was applied."
+        ? `${numbers.format(1)} check was applied.`
         : `${numbers.format(trust.guardsApplied.length)} checks were applied.`;
 
   const coverage =
