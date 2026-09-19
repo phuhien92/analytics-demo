@@ -72,10 +72,11 @@ because an amendment can be rendered as a diff the user reads before it applies.
 ### Layout
 
 ```
-data/                         provided CSVs (source-of-truth stand-in)
+data/                         the held payload, as four CSVs
 design-system/                design foundations as static source — tokens + preview cards
-scripts/build-warehouse.ts    ETL: CSV -> compiled store
+scripts/ingest-payload.ts     `npm run ingest`: received payload -> compiled store
 semantic/movielens.json       THE SEMANTIC LAYER — versioned data, not code
+.store/                       the compiled store — a build artifact, never committed
 src/
   server/
     contracts/                THE CORE CONTRACTS — a leaf module; see section 2
@@ -87,6 +88,12 @@ src/
       answer.ts                 Answer discriminated union
       payload.ts                ReceivedPayload envelope
       semantic-layer.ts         the layer's schema
+    ingest/                   RECEIVED PAYLOAD -> STORE; see section 2a
+      payload.ts                the payload body, composed onto the envelope
+      csv.ts                    CRLF-aware, quoted-field-safe reader
+      read-payload.ts           the four CSVs read as one received payload
+      build-store.ts            payload -> append-only log + derived indexes
+      store.ts                  the store's shape, and its binary read/write
     warehouse/                DATA ACCESS LAYER (swappable)
       types.ts                  interface Warehouse { aggregate(spec) }
       local-store.ts            typed-array adapter
@@ -108,6 +115,7 @@ src/
                               Chart, NaiveComparison, ProvenanceDrawer
 tests/
   contracts.test.ts           the core contracts hold their shape
+  pinned-figures.test.ts      the pinned figures, as regression tests on the ETL
   engine.test.ts
   conformance/                spec -> expected numbers; EVERY adapter must pass
   evals/questions.jsonl       question -> expected-spec pairs
@@ -240,6 +248,105 @@ later is then a rendering change rather than rebuilding the path.
 every caller has to handle both paths — enforced at compile time by an exhaustiveness
 check, not by convention.
 
+## 2a. The received payload and the store
+
+Landed by GA-02. Section 2 is the shape a question travels in; this is the shape the
+data arrives and rests in.
+
+### The payload is an envelope plus a body, and only the envelope is portable
+
+Applications push data in over a webhook or API; the held dataset is one such delivery,
+and the receiver is not built for the demo (`docs/how-this-was-built.md` entry 10). That
+decision has a shape:
+
+- **`contracts/payload.ts` carries the envelope** — `sourceId`, `payloadId`,
+  `schemaVersion`, `receivedAt`. It is an integration contract and names no dataset
+  (invariant 6).
+- **`ingest/payload.ts` carries the body** — titles, ratings, tags — because the body is
+  *this* integration's shape and naming its entities is correct out there and forbidden
+  in `contracts/`.
+- **`ingest/read-payload.ts` reads from disk what a receiver would read from a request
+  body**, and validates it at that boundary. A live receiver replaces that one function;
+  nothing downstream of `ReceivedPayloadSchema` moves.
+
+The envelope is fixed rather than generated. A `receivedAt` of `Date.now()` would give
+the store a different as-of point on every run, and the pinned figures would stop being
+regression tests.
+
+### The store is an append-only log with derived indexes
+
+A record, once written, is never touched again. This is what makes `asOf` answerable at
+all: a past as-of is a prefix of the event-time index, not a different store, so
+`Provenance.resolvedAsOf` names something re-runnable rather than something merely
+explainable. Retrofitting immutability is a storage rewrite, not a field addition, which
+is why it lands before anything reads the store.
+
+Two consequences carry their weight:
+
+- **Records live in arrival order; ordering is an index.** `ratings.byEventTime` is a
+  permutation of log positions sorted by `(at, position)`. A late-arriving event —
+  earlier in event time than events already written — appends at the end of the log and
+  lands in the middle of the index. Nothing already written moves, and the property is
+  asserted rather than intended (`tests/pinned-figures.test.ts`).
+- **A replayed `payloadId` is recognised, not re-applied**, so `npm run ingest` is
+  idempotent and a redelivery cannot double the log.
+
+A title redeclared with different content is **refused**, not merged. Corrections are a
+feature this store does not have, and silently keeping either version is the coercion
+invariant 4 exists to prevent.
+
+### Time is unix seconds inside the store and ISO-8601 UTC everywhere else
+
+Settled by GA-02, and formerly an open implementer choice. ISO-8601 UTC on the spec, in
+provenance and in the manifest, because it is diffable and pasteable into the shareable
+artifact; unix seconds in the columns, where the comparison happens. `isoToUnixSeconds`
+and `unixSecondsToIso` are the only crossing points.
+
+The store carries **two timestamps and they are different facts**: `asOf` is the latest
+delivery's `receivedAt` — when the data arrived — and `lastEventAt` is the latest event
+in the log. For the held payload they are 2018-09-26 and 2018-09-24T14:27:30Z. Collapsing
+them would make "as of when?" unanswerable the first time a payload arrives late.
+
+### Every measure is a scaled integer, and the scale is declared
+
+Ratings are stored as hundredths in an `Int16Array`. Half-stars are dyadic and would
+survive as floats, but a partner payload carrying prices would not, and two adapters
+disagreeing in the 11th decimal is exactly the silent difference this product claims to
+catch. Policy, not coincidence.
+
+The scale is declared in the manifest, and **a value that does not land on it is
+rejected rather than rounded**. Rounding silently changes a partner's number at the one
+point no test is looking.
+
+### The reader fails loudly where the data can lie quietly
+
+- The genre marker `(no genres listed)` resolves to **zero genres**, never to a
+  twentieth genre. It is not a value; it is the absence of one.
+- A release year is parsed only from four digits in parentheses at the very end of the
+  delivered title. Thirteen titles do not match, and one of them —
+  `Death Note: Desu nôto (2006–2007)` — is why the rule is not loosened: a looser rule
+  files a year *range* under 2006 without saying so. The unparseable thirteen become a
+  declared gap, which GA-04 discloses in the trust report's coverage note (C4).
+- A column looked up by name and not found throws, with the header printed **escaped**.
+  The reason it is usually not found is an invisible character, and
+  `has no column "genres"; its header is [movieId, title, genres]` reads as a
+  contradiction. See the CRLF note below.
+- The store records the endianness it was written with and refuses to be read on a
+  machine that disagrees, rather than returning byte-swapped numbers.
+
+### CRLF is the defect the pinned figures exist to catch
+
+All four supplied files terminate lines with `\r\n`. Read naively — only `\n` treated as
+a terminator — every genre that falls last in its row forks into a `\r`-suffixed twin and
+the genre count goes from **19 to 38**. `IMAX` is always last in its list, so under that
+reading the genre does not exist under its own name at all: a breakdown by genre silently
+loses it and splits the rest. Nothing errors.
+
+Two things follow. The stripping lives **in the scanner**, not in a
+`replace(/\r\n/g, "\n")` pass over the text, because that pass also rewrites line
+endings inside quoted fields — a silent edit to the partner's data. And both numbers are
+pinned: the shipped 19, and the 38 a naive parse would have produced.
+
 ## 3. Semantic layer
 
 Declared as **versioned JSON** (`semantic/movielens.json`), loaded and validated at
@@ -351,8 +458,16 @@ What the user is shown for each error case is in `docs/design.md` section 8.
   that does not survive that conversion, rather than seven increments later.
 - **Vitest** over the engine. Pure functions, so the determinism claim is provable
   rather than asserted: same spec always yields the same numbers.
-- **Guard tests** pinned to the verified figures in `docs/design.md` section 4 (296,
-  8,427, 34, 18, 2.27). These double as regression tests on the ETL.
+- **Pinned figures** (`tests/pinned-figures.test.ts`), tied to the measured figures in
+  `docs/design.md` section 4 (296, 8,427, 34, 18, 13, 2.27). These double as regression
+  tests on the ETL, so a figure that moves means the ETL changed and is investigated
+  rather than updated. Each is asserted **with its definition, its guards in effect —
+  none, and asserted to be none — and its as-of**, because a bare number is the kind of
+  claim this product exists to argue against. Two pairs are pinned rather than one
+  figure: genres per title at **2.27 with `exclude_uncategorised` on and 2.26 with it
+  off**, since the off reading is what the most natural implementation writes and a team
+  pinning only 2.27 would read 2.26 as a day-one regression; and genre cardinality at
+  **19 shipped against the 38 a naive unstripped parse produces**.
 - **Conformance suite** — spec → expected-numbers cases that every `Warehouse` adapter
   must pass. This is what makes the determinism claim survive a second adapter, and it
   is the artifact that proves the product's central promise.
@@ -373,6 +488,15 @@ Vercel-ready.
 
 Note: Next 16 removed synchronous access to `params`, `searchParams`, `cookies` and
 `headers` — all are async-only.
+
+**`npm run ingest` runs on Node's native TypeScript stripping**, with no runner
+dependency and no build step, so the clean-clone path stays
+`npm install && npm run ingest && npm run dev`. Two settings hold that in place, and
+both were added by GA-02: `allowImportingTsExtensions`, because every relative import in
+the node-executed chain (`scripts/` and `src/server/ingest/`) carries an explicit `.ts`
+extension — Node resolves no others; and `erasableSyntaxOnly`, so an `enum` or a
+parameter property landing anywhere in the project fails at `tsc` rather than at the next
+`npm run ingest`.
 
 **Versions are pinned exactly, not by range**, so a clean clone resolves what was
 verified: React 19.2.8 (the version the shadcn verification below ran against, and what

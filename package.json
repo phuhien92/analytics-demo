@@ -8,6 +8,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "ingest": "node scripts/ingest-payload.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

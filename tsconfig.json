@@ -14,6 +14,8 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": true,
     "incremental": true,
     "noEmit": true,

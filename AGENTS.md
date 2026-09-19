@@ -1,3 +1,5 @@
+<!-- firstmate:maintained-by-project -->
+
 # Golden Analytics — agent contract
 
 AI-native analytics for non-technical business users. The wedge is not query
@@ -138,14 +140,20 @@ These were measured, not assumed, and are pinned as guard tests — they double 
 regression tests on the ETL. Changing one means the ETL changed; investigate
 before updating the expectation.
 
-| Figure | Value |
-| --- | --- |
-| Titles averaging a perfect 5.0 | 296 (every one ≤2 ratings) |
-| Rated titles with <20 ratings | 8,427 of 9,724 (86.7%) |
-| Titles with zero ratings | 18 |
-| `(no genres listed)` | 34 |
-| Genre assignments per movie | 2.27 average |
-| Titles with no parseable year | 13 |
+**A figure without its definition is not a pinned figure.** Each is asserted in
+`tests/pinned-figures.test.ts` with its definition, its guards in effect — none, and
+asserted to be none — and its as-of (`2018-09-26T00:00:00.000Z`, the delivery's
+`receivedAt`).
+
+| Figure | Value | Definition that makes it reproducible |
+| --- | --- | --- |
+| Titles averaging a perfect 5.0 | 296 (every one ≤2 ratings) | mean of every rating at or before the as-of, exactly 5.00 |
+| Rated titles with <20 ratings | 8,427 of 9,724 (86.7%) | of titles with ≥1 rating; 20 is the figure measured, not a filter applied |
+| Titles with zero ratings | 18 | declared titles with no rating at the as-of |
+| `(no genres listed)` | 34 | the marker resolves to **zero** genres, never a twentieth genre |
+| Genre assignments per movie | **2.27** *and* **2.26** | 22,050 assignments over the 9,708 categorised titles (`exclude_uncategorised` on) and over all 9,742 (off). Both are pinned: the off reading is what the natural implementation writes, and a team pinning only 2.27 reads 2.26 as a day-one regression |
+| Genre cardinality | **19**, against **38** naive | 38 is what an unstripped (CRLF) parse yields. `IMAX` is always last in its row, so under that parse it stops existing under its own name and a genre breakdown loses it silently |
+| Titles with no parseable year | 13 | four digits in parentheses at the very end of the delivered title. `Death Note: Desu nôto (2006–2007)` is a year *range* and is refused, not filed under 2006 |
 
 The hero moment (design §4) is `"What are our top rated titles?"`: 296 titles tied at
 5.00 naively, versus *A Streetcar Named Desire* 4.47 (n=20) and *The Shawshank
@@ -154,9 +162,15 @@ Redemption* 4.43 (n=317) honestly. Keep it real, never contrived.
 ## Layout and stack
 
 Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
-`src/server/` splits `contracts/` (a leaf), `warehouse/` (swappable), `semantic/`,
-`engine/` (pure) and `ai/`, and `tests/` carries `contracts.test.ts`,
-`engine.test.ts`, `conformance/` and `evals/questions.jsonl`.
+`src/server/` splits `contracts/` (a leaf), `ingest/` (payload → store),
+`warehouse/` (swappable), `semantic/`, `engine/` (pure) and `ai/`, and `tests/`
+carries `contracts.test.ts`, `pinned-figures.test.ts`, `engine.test.ts`,
+`conformance/` and `evals/questions.jsonl`.
+
+`npm run ingest` compiles the received payload into `.store/` — a build artifact,
+never committed. It runs on Node's native TypeScript stripping, so every relative
+import under `scripts/` and `src/server/ingest/` carries an explicit `.ts`
+extension and `erasableSyntaxOnly` is on project-wide (architecture §10).
 
 `src/server/contracts/` is where every shared type lives, and it stays a leaf: it
 imports `zod` and its own siblings, nothing else — not `node:*`, not `next/*`, and
