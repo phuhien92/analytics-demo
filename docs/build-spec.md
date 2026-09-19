@@ -324,9 +324,10 @@ definition of done is a record of what was built, not an instruction to keep cod
 
 **Size** M — one session · **Depends on** GA-04 · **Swappable with** GA-05
 
-**Landed** 2026-09-18 · PR — see `docs/how-this-was-built.md` part three, GA-06. Decisions recorded
-there as entries 48–52; the standing technical record is `docs/architecture.md` §5b. From here this
-definition of done is a record of what was built, not an instruction to keep code matching it.
+**Landed** 2026-09-18 · [PR #25](https://github.com/phuhien92/analytics-demo/pull/25). Decisions
+recorded in `docs/how-this-was-built.md` part three, GA-06, entries 48–52; the standing technical
+record is `docs/architecture.md` §5b. From here this definition of done is a record of what was
+built, not an instruction to keep code matching it.
 
 > **The second adapter is Postgres, not SQLite** — decided by the captain during the increment and
 > authoritative over the line below, which was stale before the work started. The delivered file is
