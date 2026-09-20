@@ -4,7 +4,7 @@ This application is an AI-native analytics framework designed for non-technical 
 
 ## **Purpose & Trust Thesis**
 
-Traditional text-to-SQL solutions suffer from silent failures where queries return incorrect figures and non-technical users accept blindly. The app addresses this through the trust thesis: `**AI interprets, never computes`**. The AI model translates natural language questions into a typed `QuerySpec` . All data aggregation, filtering, sorting, and guard applications are handled by a deterministic execution engine and calculated number strictly comes from the computed `ResultSet`.
+Traditional text-to-SQL solutions suffer from silent failures where queries return incorrect figures and non-technical users accept blindly. The app addresses this through the trust thesis: `AI interprets, never computes`. The AI model translates natural language questions into a typed `QuerySpec` . All data aggregation, filtering, sorting, and guard applications are handled by a deterministic execution engine and calculated number strictly comes from the computed `ResultSet`.
 
 The product never simply tells you a result is trustworthy. It proves by showing you two answers side by side: the naive one (no safety guards) and the guarded one. So you can see for yourself what the guards changed. 
 
@@ -42,6 +42,18 @@ The demo is used the provided dataset but I built the **architecture in producti
 
 ## High-level Architecture
 
+The app chooses to use Next.js App Router: one app for the screen and `POST /api/ask`.
+
+#### Frontend
+
+Look, behaviour, and ownership are three layers and do not compete each other. Tailwind and CSS variables in `globals.css` carry the theme (design-system tokens mapped onto the names shadcn’s components read) and set at the start. So the next component does not arrive without theming. Radix is only for the interactive pieces supporting accessibility for dialog, drawer, popover: focus trap, Escape, keyboard. Shadcn is the glue: the CLI copies React source into `src/components/ui`, already wired to those primitives, so I can read and change it. A component can be added anytime when a screen needs it.
+
+### Server
+
+The route loads the store and the semantic layer. A `QuerySpec` is the recipe: the model writes it, Zod checks it, the engine runs it. The warehouse answers `aggregate(spec)` with one small table, not raw rows. That table is files on disk today. Postgres is choosen as a second adapter for production. So a clone still runs with no key and no database. Two engines matching is the point of the seam. 
+
+AI uses the Anthropic SDK directly, not an agent framework. This product focuses on a typed-command approach, not an autonomous SQL agent. So I want to own the cache and schema surfaces. This makes that command strict. 
+
 Natural language is a **command** into a query engine. The AI never computes a number.
 
 ```mermaid
@@ -63,7 +75,7 @@ flowchart LR
 
 1. **Interpret**: turn English into a `QuerySpec`: one structured recipe (what to measure, how to break it down, which checks apply). AI does that when a key is present; without a key, a small parser only matches the starter questions.
 2. **Engine**: run recipes the same way every time. It applies the checks, sort, and row cap. If the checks change who is on top, the answer shows both rankings: the naive one and the honest one.
-3. **Warehouse**: fetch one aggregated table for that recipe. The engine never walks raw rows.
+3. **Warehouse**: fetch one aggregated table for that recipe. The engine never looks raw rows.
 4. **Narrate**:  write the takeaway from that small table (~20 rows) and the trust report. No raw ratings reach the narrator, so no figure can originate in a model.
 
 ---
