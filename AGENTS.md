@@ -94,11 +94,17 @@ The central artifact (architecture §2). Every safety property falls out of its 
 
 ## Settled decisions — do not resurrect without a design change
 
+**"Canva for data" is the north star, not the wedge.** It is where the product is heading,
+and the right destination. Bricks already markets itself in that position, so the phrase on
+its own does not differentiate; the wedge that gets there is *It catches what you'd have
+missed* — silent failure, which nobody else sells. That split is settled: the positioning
+leads with the catch, and leading with "Canva for data" is not reopened without a design
+change.
+
 | Rejected | Why |
 | --- | --- |
 | DuckDB-WASM | 142 MB for a 100,836-row dataset, and shipping a SQL engine to show SQL the user cannot read contradicts the thesis |
 | A ratings-drift-over-time guard | Not supported by the data: yearly means oscillate 3.31–3.88 with no trend |
-| "Canva for data" as the *wedge* | It is the north star, and the right one. Bricks already markets the phrase, so the demo needs a wedge underneath it that nobody else sells; silent failure is that wedge, and it is one step on the road to the north star, not a substitute for it |
 | "An answer you can defend" | Sells the absence of a bad thing to a user who has never been burned; answers step 2 while she is at step 1 |
 | `guards: { minRatingsPerTitle }` in the core type | A MovieLens assumption inside the portable contract |
 | React Aria in place of Radix | Stronger locale and screen-reader coverage, but a steeper API for the same six components |

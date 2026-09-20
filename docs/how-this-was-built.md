@@ -104,11 +104,16 @@ is a rewrite of every layer.
 
 **Decided.** *It catches what you'd have missed.*
 
+**The north star, not the wedge.** "Canva for data" is where the product is heading, and
+the catch is the wedge that gets there. It is not the wedge itself because the phrase is
+occupied: Bricks markets itself as "the Goldilocks tool that sits perfectly between Canva's
+ease-of-use and Tableau's power", with 100,000+ professionals claimed. So the wedge has to be
+something underneath it that Bricks does not sell.
+
 **Rejected, with reasons.**
 
 | Rejected | Why |
 | --- | --- |
-| "Canva for data" as the wedge | The north star stands. But the phrase is occupied: Bricks markets itself as "the Goldilocks tool that sits perfectly between Canva's ease-of-use and Tableau's power", with 100,000+ professionals claimed. So the wedge has to be something underneath it that Bricks does not sell. |
 | "An answer you can defend in Monday's meeting" | A negative proposition. It sells the absence of a bad thing to a user who has never been burned by it, and it answers step 2 while she is stuck at step 1. |
 
 **Evidence.** Same machinery underneath either phrasing; opposite posture. "We catch the
