@@ -88,7 +88,8 @@ export function SessionColumn({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      {/* `relative` for the same reason `main` is: see `ask-surface.tsx`. */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <h2 className="text-subhead text-ga-ink">Saved recipes</h2>
         <p className="mt-2 max-w-measure text-small text-ga-ink-secondary">
           Nothing saved yet. A saved recipe is the <em>question</em>, not the answer — re-run
