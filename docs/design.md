@@ -30,9 +30,11 @@ Market research (Sept 2026) found the space crowded in four segments:
 
 Two findings shaped this design.
 
-**"Canva for data" is taken.** Bricks markets itself as "the Goldilocks tool between
-Canva's ease-of-use and Tableau's power" — 100,000+ users, enterprise logos. It is a
-fine north star, not a wedge.
+**"Canva for data" is the north star, and it needs a wedge.** The destination is the
+right one. But Bricks already markets itself as "the Goldilocks tool between Canva's
+ease-of-use and Tableau's power" — 100,000+ users, enterprise logos — so the phrase on
+its own no longer differentiates. This demo keeps the north star and picks one wedge
+that moves toward it.
 
 **Everyone races on query accuracy; nobody solves silent failure.** The sources agree
 against their own commercial interest:
