@@ -27,7 +27,7 @@ Four distinct segments, each selling something different.
 | **Incumbent BI + AI** | ThoughtSpot Spotter, Omni, Sigma, Looker, Metabase, Power BI Copilot, Tableau, Domo, Sisense | Governance — sold to the data team | Enterprise |
 | **Warehouse-native** | Databricks AI/BI Genie, Snowflake Cortex Analyst | AI where the data already lives | Consumption |
 
-### "Canva for data" is already taken
+### "Canva for data" is the north star, and Bricks already uses the phrase
 
 **Bricks** markets itself, in its own words, as *"the Goldilocks tool that sits
 perfectly between Canva's ease-of-use and Tableau's power."* It claims 100,000+
@@ -35,8 +35,9 @@ professionals and shows PwC, Deloitte, NVIDIA, Adobe, ByteDance and MIT logos. U
 CSV, an Excel file, a PDF — even a screenshot containing a table — and it returns a
 full dashboard in roughly 30 seconds.
 
-The positioning is occupied. It remains a useful internal north star. It is not a
-wedge.
+The destination is right, and it stays the north star. The phrase alone no longer
+differentiates, so the wedge has to sit underneath it: something the user gets from
+this product that none of the tools above sell.
 
 ---
 
