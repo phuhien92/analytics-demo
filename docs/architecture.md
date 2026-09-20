@@ -69,6 +69,30 @@ against the previous spec rather than a fresh spec. The conversational unit of s
 the spec, not a transcript — cheaper than carrying chat history, and more verifiable,
 because an amendment can be rendered as a diff the user reads before it applies.
 
+### Natural language commands a query engine — that is the scale path
+
+This is the same shape tools like New Relic use at product scale: a **query engine** owns
+compute; natural language is how a human (or an agent) **issues a command** into that
+engine. It is not a chatbot that happens to mention numbers.
+
+| Layer | Role | What scales |
+| --- | --- | --- |
+| Interpret (AI) | Sentence → `QuerySpec` (or refusal) | More languages, better parsing — never more arithmetic |
+| Engine | Deterministic composition: guards, order, limit, trust, naive/honest | Same code against any adapter |
+| Warehouse `aggregate(spec)` | Push aggregation down | Local store today → Postgres / Snowflake tomorrow |
+
+The portable IR is deliberately **narrower than SQL or NRQL**. A general query language
+lets the model express wrong joins and undeclared measures; `QuerySpec` makes those
+inexpressible, and the semantic layer is the closed vocabulary the command must name.
+Scale of **data and compute** lives behind `aggregate(spec)`. Scale of **understanding**
+stays on the interpret side. Mixing those two — letting the model author free SQL — is
+how text-to-SQL products grow expressiveness and re-open the silent-failure mode this
+product exists to close.
+
+What is deferred (a real warehouse adapter, pushdown past ~1M rows) is therefore an
+**adapter change**, not a product rewrite and not a change to how AI is used. The demo
+already runs the production shape.
+
 ### Layout
 
 ```
