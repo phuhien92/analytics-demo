@@ -90,7 +90,8 @@ export function SessionColumn({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      {/* `relative` for the same reason `main` is: see `ask-surface.tsx`. */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <h2 className="text-subhead text-ga-ink">Recommended</h2>
         <p className="mt-2 text-small text-ga-ink-secondary">
           {recommended.length === 0

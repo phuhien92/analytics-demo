@@ -220,6 +220,11 @@ export function AskSurface({
     // which is also what keeps the composer anchored at the foot. Below `lg` the columns
     // stack and the page scrolls as one, because a pinned composer on a short viewport
     // costs more room than it earns.
+    //
+    // `main` is `relative` because it scrolls. `sr-only` is `position: absolute`, and an
+    // absolutely positioned box is laid out against its nearest *positioned* ancestor —
+    // with none, that is the page, so the trust strip's hidden labels escaped this
+    // column's clipping and made the document itself as tall as the answer.
     <div className="min-h-dvh bg-ga-bg lg:h-dvh lg:overflow-hidden">
       <a
         href="#ask"
@@ -231,7 +236,7 @@ export function AskSurface({
       <div className="grid min-h-dvh grid-cols-[auto_minmax(0,1fr)_22rem] lg:h-full lg:min-h-0 max-lg:grid-cols-1 max-lg:grid-rows-[auto_1fr_auto]">
         <AppRail onGoHome={reset} />
 
-        <main id="ask" className="min-w-0 px-7 py-7 max-sm:px-4 lg:min-h-0 lg:overflow-y-auto">
+        <main id="ask" className="relative min-w-0 px-7 py-7 max-sm:px-4 lg:min-h-0 lg:overflow-y-auto">
           {phase.kind === "zero" ? (
             <ZeroState
               dataset={dataset}
