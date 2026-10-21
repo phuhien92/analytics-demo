@@ -2667,6 +2667,27 @@ deployment, and `LIVE_INTERPRET_API_KEY` exists precisely so an ordinary run nev
 someone remembered to set the variable — the loud skip was the default outcome everywhere a
 reviewer would look.
 
+### 68. Biome lints, the formatter stays off, and a warning fails CI
+
+**Decided.** `@biomejs/biome` 2.5.15 with its recommended preset plus the React and Next
+domains, run in CI as `biome ci --error-on-warnings`. Standing in `docs/architecture.md` §10.
+
+**Evidence.** The first run over 86 files took 0.1 s and reported 3 errors, 89 warnings and 55
+infos. None was a bug. Two errors were fixed (a local named `escape` shadowing the global,
+now `runWithoutGuards`; an assignment inside an expression in `tests/ask-route.test.ts`). The
+third, an index in the catch block's row key, is suppressed with its reason: a row carries
+only its label, five titles share a label (entry 49), and the list never reorders. 82
+warnings were `noNonNullAssertion` and 54 infos `useLiteralKeys`; both rules are off with
+the reason in `biome.jsonc`. The four `!important` warnings are the reduced-motion override
+(design §7), suppressed as a range. The `jsx-a11y`-derived accessibility rules found nothing.
+
+**Rejected.** *ESLint with `eslint-config-next`*: a few more Next-specific rules, at the cost
+of a plugin tree against one binary. *Turning the formatter on*: rewrites nearly every file
+for no finding. *Letting warnings pass*: a warning that never fails is read by nobody.
+
+**Later would have cost.** Every file written before the linter is a file its first run has
+to triage; this one triaged 147 diagnostics in an afternoon.
+
 ---
 
 ---

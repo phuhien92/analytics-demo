@@ -50,6 +50,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npx biome ci --error-on-warnings
       - run: npm run typecheck
       - run: npm test
       - run: npm run eval

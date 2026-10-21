@@ -174,7 +174,7 @@ export function AskSurface({
    * The ids come off the answer's own trust report rather than from the layer, so the
    * escape can only turn off checks that actually ran on the answer being looked at.
    */
-  const escape = useCallback(
+  const runWithoutGuards = useCallback(
     (question: string, applied: TrustReport["guardsApplied"]) => {
       ask(
         question,
@@ -285,7 +285,7 @@ export function AskSurface({
                   locale={locale}
                   checksOff={phase.checksOff}
                   onEscape={() =>
-                    escape(phase.question, phase.answer.ok ? phase.answer.resultSet.trust.guardsApplied : [])
+                    runWithoutGuards(phase.question, phase.answer.ok ? phase.answer.resultSet.trust.guardsApplied : [])
                   }
                   onRestore={() => ask(phase.question)}
                   busy={busy}

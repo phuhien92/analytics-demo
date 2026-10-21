@@ -57,7 +57,10 @@ function deps(overrides: Partial<AskDependencies> = {}): AskDependencies {
     // `null` is the keyless build saying it has no live arm — the shipped configuration.
     interpreter: selectInterpreter(null, {}),
     narrate: narrateFromTemplate,
-    newRequestId: () => `req_${(requests += 1)}`,
+    newRequestId: () => {
+      requests += 1;
+      return `req_${requests}`;
+    },
     now: () => "2026-09-18T00:00:00.000Z",
     ...overrides,
   };

@@ -166,6 +166,7 @@ function Side({
       <ol className="mt-3 flex list-none flex-col gap-1.5 p-0">
         {rows.map((row, index) => (
           <Row
+            // biome-ignore lint/suspicious/noArrayIndexKey: a row carries only its label, and five titles share a label with another member; the list never reorders, so the index is the stable part
             key={`${row.key ?? "row"}-${index}`}
             row={row}
             rank={index + 1}

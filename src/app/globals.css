@@ -280,6 +280,7 @@
    * `docs/design.md` §7 requires it, and a bar chart that grows on mount is exactly the
    * motion it is about.
    */
+  /* biome-ignore-start lint/complexity/noImportantStyles: a reduced-motion override has to beat every component's own animation, which is what !important is for */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -290,6 +291,7 @@
       scroll-behavior: auto !important;
     }
   }
+  /* biome-ignore-end lint/complexity/noImportantStyles: end of the reduced-motion override */
 }
 
 @layer components {

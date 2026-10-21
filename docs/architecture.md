@@ -1288,6 +1288,18 @@ application has no database and ships none. `tests/conformance/corpus.test.ts` a
 they are absent from `dependencies`, and `next build` produces a bundle with no trace of
 the adapter or the driver.
 
+**Biome is the linter, and only the linter.** `@biomejs/biome` 2.5.15, one devDependency,
+run by `npm run lint` and by `biome ci --error-on-warnings` in CI, so a warning fails the
+build rather than accumulating. It replaces no part of the toolchain: `tsc` still owns type
+errors, and Turbopack, Node's stripping and Vitest still only erase types. ESLint with
+`eslint-config-next` was the alternative and covers a few more Next-specific rules, but it is
+a plugin tree where Biome is a single binary, and Biome's React, Next and `jsx-a11y`-derived
+accessibility rules are the ones invariant 11 needs. Its formatter is off: no formatter has
+ever run here, and turning one on rewrites nearly every file for no finding. Two rules are
+off in `biome.jsonc`, each with its reason beside it, and the explicit-`.ts`-extension rule
+is not turned on because `npm run eval` imports extensionless through
+`scripts/module-alias.mjs` by design.
+
 **Versions are pinned exactly, not by range**, so a clean clone resolves what was
 verified: React 19.2.8 (the version the shadcn verification below ran against, and what
 `create-next-app@16.3.5` itself pins), TypeScript 5.9.3, Vitest 5.0.1. The one range is

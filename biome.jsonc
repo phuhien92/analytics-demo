@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["src/**", "scripts/**", "tests/**"] },
+  // Lint only. Turning the formatter on would rewrite nearly every file, and nothing yet
+  // shows the formatting is inconsistent (architecture §10).
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "linter": {
+    "enabled": true,
+    "domains": { "next": "recommended", "react": "recommended" },
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // `noUncheckedIndexedAccess` is on, so a `!` marks an index the code has already
+        // bounded (typed arrays, fixtures). The type checker forces the decision; the
+        // assertion records it.
+        "noNonNullAssertion": "off"
+      },
+      "complexity": {
+        // Bracket access is how untyped input is read — `process.env`, a model response,
+        // a request body — so the key reads as data rather than as a declared field.
+        "useLiteralKeys": "off"
+      }
+    }
+  }
+}
