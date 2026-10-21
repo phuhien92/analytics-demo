@@ -205,7 +205,7 @@ Layout is fixed in architecture §1 — `semantic/` holds the layer as data,
 carries `contracts.test.ts`, `pinned-figures.test.ts`, `semantic.test.ts`,
 `engine.test.ts`, `rejection.test.ts`, `ask-route.test.ts`, `ai/` (`mode`, `interpret`,
 `live-interpret`, `keyless-import-graph`), `conformance/` and `evals/` (`questions.jsonl`, `baseline.json`,
-`baseline.live.json`, `harness.test.ts`) and `ui/`. `src/app/api/ask/`
+`baseline.live.json`, `harness.test.ts`), `ui/` and `e2e/` (the browser layer). `src/app/api/ask/`
 splits `route.ts` (the composition root: disk reads, process singletons, `POST`) from
 `answer.ts` (assembly, status codes, frame order, the stream), so the whole HTTP surface is
 testable with an injected warehouse — no compiled `.store/`, no server.
@@ -328,6 +328,11 @@ three rules that fail silently otherwise: the `<table>` is reachable through a d
 is not hidden with CSS, the surface has exactly one `Intl` formatter, and the first paint
 cannot reach the engine. **GA-15's verification pass is deferred (build-spec §0), so these
 are what hold the accessibility line** — build them in, do not retrofit them.
+
+`tests/e2e/` is the browser layer (architecture §9): Playwright against the built keyless app,
+a screenshot baseline, an axe pass and the pinned figures in text on each main screen. Baselines
+are Linux renders from CI; **never commit one taken on a laptop** — run the `Update screenshots`
+workflow instead. A changed baseline is a reviewed change to the surface, not a test to make green.
 
 ## README requirements
 

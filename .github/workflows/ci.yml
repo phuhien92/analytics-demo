@@ -55,3 +55,31 @@ jobs:
       - run: npm test
       - run: npm run eval
       - run: npm run build
+
+  # The browser layer (architecture §9): screenshots of the main screens against their
+  # baselines, an axe pass on each, and the keyboard path. Separate from `check` so a
+  # visual change and a logic failure read as two different red rows.
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+      # The expected, actual and diff images for every failed screenshot.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14

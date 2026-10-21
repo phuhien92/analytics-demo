@@ -1252,6 +1252,18 @@ offer.
 - **Accessibility checks** — automated axe pass on the main flow, plus a manual
   keyboard-only run through ask → amend → open provenance drawer. The data table
   behind each chart is asserted present and reachable.
+- **The browser layer** (`tests/e2e/`, `npm run test:browser`) — Playwright drives the
+  built, keyless app in Chromium for what static markup cannot show: what each main screen
+  looks like, and what axe finds once scripts have run. Each screen (zero state, the hero
+  answer, provenance and the chart's table open, checks off) is compared against a
+  committed baseline image, carries an axe pass at WCAG 2.1 AA, and asserts the pinned
+  figures in text, because a screenshot alone passes a regression drawn in the same place.
+  A keyboard-only test asks, lands on the answer and opens provenance. This automates the
+  axe pass above; it does not complete GA-15, whose recorded keyboard run, contrast sweep
+  and amend step stay open. Baselines are rendered on CI's Linux runner — a file name
+  carries its platform, and the `Update screenshots` workflow regenerates them — because a
+  laptop's font rasterisation alone fails every comparison. `tests/ui/` stays DOM-free;
+  the browser is a second layer, not a replacement for the first.
 
 ## 10. Stack
 
@@ -1299,6 +1311,12 @@ ever run here, and turning one on rewrites nearly every file for no finding. Two
 off in `biome.jsonc`, each with its reason beside it, and the explicit-`.ts`-extension rule
 is not turned on because `npm run eval` imports extensionless through
 `scripts/module-alias.mjs` by design.
+
+**Playwright drives the browser layer.** `@playwright/test` 1.56.1, with
+`playwright-core` pinned beside it so `@axe-core/playwright` 4.13.0 resolves the same copy
+rather than installing a second, newer one whose `Page` type does not match. 1.56.1 is the
+release whose Chromium (build 1194) the verification ran on. Chromium only: the claim is
+about this surface's pixels and accessibility tree, not cross-browser rendering.
 
 **Versions are pinned exactly, not by range**, so a clean clone resolves what was
 verified: React 19.2.8 (the version the shadcn verification below ran against, and what

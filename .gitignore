@@ -29,3 +29,7 @@ npm-debug.log*
 .DS_Store
 *.pem
 .firecrawl/
+
+# playwright
+/test-results/
+/playwright-report/

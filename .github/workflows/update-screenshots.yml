@@ -1,0 +1,41 @@
+name: Update screenshots
+
+# Run by hand from the Actions tab, on the branch whose surface changed. Baselines are
+# rendered here because they must come from the machine CI compares on: a screenshot taken
+# on a laptop differs in font rasterisation alone.
+#
+# A push made with GITHUB_TOKEN does not start a new CI run, so after this commits, push
+# anything (or re-run CI) for the PR's checks to report on the new head.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser -- --update-snapshots
+
+      - name: Commit changed baselines
+        run: |
+          git add tests/e2e/__screenshots__
+          if git diff --cached --quiet; then
+            echo "Baselines unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update screenshot baselines"
+          git push

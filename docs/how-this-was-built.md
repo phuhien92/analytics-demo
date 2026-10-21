@@ -2688,6 +2688,32 @@ for no finding. *Letting warnings pass*: a warning that never fails is read by n
 **Later would have cost.** Every file written before the linter is a file its first run has
 to triage; this one triaged 147 diagnostics in an afternoon.
 
+### 69. The browser layer: screenshots, axe and the keyboard path, in Playwright
+
+**Decided.** `tests/e2e/` runs the built keyless app in Chromium through Playwright 1.56.1.
+Four screens are compared against committed baselines, each with an axe pass at WCAG 2.1 AA
+and the pinned figures asserted in text; a fifth test walks ask → answer → provenance by
+keyboard. CI runs it as its own job and uploads expected, actual and diff images on failure.
+Standing in `docs/architecture.md` §9 and §10.
+
+**Evidence.** Five passes on three consecutive cold runs. axe reported zero violations on all
+four screens. A one-word copy change ("these" → "those") failed the zero-state comparison at
+12 pixels, and the diff image marked exactly those pixels. The first run surfaced a
+dependency defect: `@axe-core/playwright` installed its own `playwright-core` 1.64.1, whose
+`Page` type does not match, which `next build`'s type check caught. `playwright-core` is now
+pinned beside the runner. It also surfaced a copy inconsistency, left for its own change:
+with the checks off, the narration and the chart's value labels show `5` where the catch
+block shows `5.00`.
+
+**Rejected.** *Storybook*: three primitives, a design-system showcase that already exists, and
+a second toolchain to keep in step with Next 16 and Tailwind v4. *A hosted visual service
+(Percy, Chromatic)*: sends the surface to a third party for what a committed PNG does.
+*Baselines from a laptop*: font rasterisation alone fails every comparison on CI.
+*Calling GA-15 done*: its recorded keyboard run, contrast sweep and amend step are not here.
+
+**Later would have cost.** Until now a change to the surface was reviewed as a diff of class
+names, and the accessibility line was held only by static markup.
+
 ---
 
 ---

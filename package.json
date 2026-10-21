@@ -12,7 +12,8 @@
     "eval": "node --import ./scripts/module-alias.mjs scripts/eval.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.127.0",
@@ -31,7 +32,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.56.1",
     "@types/node": "22.20.3",
     "@types/pg": "8.16.0",
     "@types/pg-copy-streams": "1.2.5",
@@ -39,6 +42,7 @@
     "@types/react-dom": "19.3.0",
     "pg": "8.23.0",
     "pg-copy-streams": "6.0.6",
+    "playwright-core": "1.56.1",
     "typescript": "5.9.3",
     "vitest": "5.0.1"
   }
