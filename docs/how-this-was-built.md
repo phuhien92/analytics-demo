@@ -2644,6 +2644,31 @@ wrong closing question.
 
 ---
 
+## CI — the checks a contributor runs, on every push
+
+### 67. CI runs the keyless suite with the second adapter switched on
+
+**Decided.** `.github/workflows/ci.yml` runs `typecheck`, `test`, `eval` and `build` on every
+pull request and every push to `main`, with a `postgres:16` service container and
+`CONFORMANCE_DATABASE_URL` set, so the conformance suite runs both adapters on every run.
+
+**Evidence.** Verified locally before landing: the full suite passes keyless (265 passed, the
+second adapter loud-skipped), and with `CONFORMANCE_DATABASE_URL` pointed at PostgreSQL 16.15
+under `C.UTF-8` the conformance files pass with both adapters agreeing; pointed at a closed port
+they fail, as §5b requires. The service is started with `--locale=C.UTF-8` so CI proves the
+configuration that was verified rather than the image's `en_US.utf8` default.
+
+**Rejected.** *CI as the only place the second adapter runs* stays rejected (entry 48): the
+variable still works against any Postgres on a laptop; CI is an additional place, not the
+only one. *Setting either API key in CI*: invariant 13 makes the keyless path a real
+deployment, and `LIVE_INTERPRET_API_KEY` exists precisely so an ordinary run never bills.
+
+**Later would have cost.** Until now the determinism claim was proved only on runs where
+someone remembered to set the variable — the loud skip was the default outcome everywhere a
+reviewer would look.
+
+---
+
 ---
 
 ## Keeping this current

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The conformance suite's second adapter (architecture §5b). Setting
+    # CONFORMANCE_DATABASE_URL makes an unreachable server a failure, never a
+    # skip, so CI proves two adapters agree rather than one agreeing with itself.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          # The locale the suite was verified against; the server's collation is
+          # printed by the suite either way.
+          POSTGRES_INITDB_ARGS: --locale=C.UTF-8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CONFORMANCE_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      # No ANTHROPIC_API_KEY and no LIVE_INTERPRET_API_KEY: CI runs the keyless
+      # path (invariant 13) and never spends on a model call.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run eval
+      - run: npm run build
