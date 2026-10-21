@@ -2658,7 +2658,7 @@ under `C.UTF-8` the conformance files pass with both adapters agreeing; pointed 
 they fail, as §5b requires. The service is started with `--locale=C.UTF-8` so CI proves the
 configuration that was verified rather than the image's `en_US.utf8` default.
 
-**Rejected.** *CI as the only place the second adapter runs* stays rejected (entry 48): the
+**Rejected.** *CI as the only place the second adapter runs* stays rejected (entry 48, *The second adapter is Postgres*): the
 variable still works against any Postgres on a laptop; CI is an additional place, not the
 only one. *Setting either API key in CI*: invariant 13 makes the keyless path a real
 deployment, and `LIVE_INTERPRET_API_KEY` exists precisely so an ordinary run never bills.
